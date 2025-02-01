@@ -31,6 +31,7 @@ export default function RegistrationForm({ userType, onSwitchToLogin, setIsLoadi
     noCnpj: false,
   })
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
@@ -51,6 +52,7 @@ export default function RegistrationForm({ userType, onSwitchToLogin, setIsLoadi
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setSuccessMessage(null)
 
     if (formData.password !== formData.confirmPassword) {
       setError("As senhas não coincidem")
@@ -60,8 +62,11 @@ export default function RegistrationForm({ userType, onSwitchToLogin, setIsLoadi
 
     try {
       await registerUser(formData.email, formData.password, formData.name, userType)
-      alert("Cadastro realizado com sucesso!")
-      onSwitchToLogin()
+      setSuccessMessage("Cadastro realizado com sucesso!")
+      setTimeout(() => {
+        setSuccessMessage(null)
+        onSwitchToLogin()
+      }, 3000)
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -72,6 +77,7 @@ export default function RegistrationForm({ userType, onSwitchToLogin, setIsLoadi
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-500 text-sm">{error}</div>}
+      {successMessage && <div className="text-green-500 text-sm">{successMessage}</div>}
       {userType === "agency" && (
         <>
           <div>

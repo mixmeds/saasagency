@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import {
   Menu,
@@ -15,10 +17,14 @@ import {
 } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { auth, db } from "@/app/lib/firebase"
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { doc, getDoc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import LoadingOverlay from "./LoadingOverlay"
 import { Skeleton, SkeletonText } from "./SkeletonLoading"
+import { ClientsContent } from "./agency/ClientsContent"
+import { CampaignsContent } from "./agency/CampaignsContent"
+import { AnalyticsContent } from "./agency/AnalyticsContent"
+import { SettingsContent } from "./agency/SettingsContent"
 
 interface AgencyData {
   name: string
@@ -45,9 +51,15 @@ export function AgencyDashboard() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        fetchAgencyData()
+        const userDoc = await getDoc(doc(db, "users", user.uid))
+        if (userDoc.exists() && userDoc.data().userType === "agency") {
+          fetchAgencyData()
+        } else {
+          setErrorMessage("Acesso negado. Esta conta não é uma conta de agência.")
+          router.push("/")
+        }
       } else {
         router.push("/")
       }
@@ -71,46 +83,20 @@ export function AgencyDashboard() {
       }
       const userData = userDoc.data()
 
-      // Fetch active clients
-      const clientsQuery = query(collection(db, "users"), where("agencyId", "==", user.uid))
-      const clientsSnapshot = await getDocs(clientsQuery)
-      const activeClients = clientsSnapshot.size
+      if (userData.userType !== "agency") {
+        throw new Error("User is not an agency")
+      }
 
-      // Fetch active campaigns
-      const campaignsQuery = query(
-        collection(db, "campaigns"),
-        where("agencyId", "==", user.uid),
-        where("status", "==", "active"),
-      )
-      const campaignsSnapshot = await getDocs(campaignsQuery)
-      const activeCampaigns = campaignsSnapshot.size
-
-      // Calculate average ROI (assuming ROI is stored in each campaign document)
-      let totalROI = 0
-      campaignsSnapshot.forEach((doc) => {
-        totalROI += doc.data().roi || 0
-      })
-      const averageROI = activeCampaigns > 0 ? totalROI / activeCampaigns : 0
-
+      // For now, we'll set placeholder values for activeClients, activeCampaigns, and averageROI
       setAgencyData({
         name: userData.name,
-        activeClients,
-        activeCampaigns,
-        averageROI: Math.round(averageROI * 100) / 100, // Round to 2 decimal places
+        activeClients: 0,
+        activeCampaigns: 0,
+        averageROI: 0,
       })
 
-      // Fetch recent activity
-      const activityQuery = query(
-        collection(db, "activity"),
-        where("agencyId", "==", user.uid),
-        where("timestamp", ">=", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)), // Last 7 days
-      )
-      const activitySnapshot = await getDocs(activityQuery)
-      const recentActivityData = activitySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as RecentActivity[]
-      setRecentActivity(recentActivityData)
+      // Clear recent activity for now
+      setRecentActivity([])
     } catch (error: any) {
       console.error("Erro ao carregar dados da agência:", error)
       if (error.code === "permission-denied") {
@@ -119,7 +105,9 @@ export function AgencyDashboard() {
           setTimeout(() => fetchAgencyData(retryCount + 1), 2000)
           return
         }
-        setErrorMessage("Permissão negada. Por favor, tente novamente mais tarde.")
+        setErrorMessage("Permissão negada. Por favor, verifique suas credenciais e tente novamente.")
+      } else if (error.message === "User is not an agency") {
+        setErrorMessage("Acesso negado. Esta conta não é uma conta de agência.")
       } else {
         setErrorMessage("Ocorreu um erro ao carregar os dados. Por favor, tente novamente.")
       }
@@ -241,36 +229,41 @@ export function AgencyDashboard() {
               <span className="block sm:inline">{errorMessage}</span>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Quick Stats */}
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-gray-500 text-sm font-medium">Clientes Ativos</h3>
-              {isDataLoading ? (
-                <SkeletonText className="w-24 h-8 mt-2" />
-              ) : (
-                <p className="text-3xl font-semibold mt-2">{agencyData?.activeClients || 0}</p>
-              )}
-            </div>
+          {activeTab === "dashboard" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Quick Stats */}
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <h3 className="text-gray-500 text-sm font-medium">Clientes Ativos</h3>
+                {isDataLoading ? (
+                  <SkeletonText className="w-24 h-8 mt-2" />
+                ) : (
+                  <p className="text-3xl font-semibold mt-2">{agencyData?.activeClients || 0}</p>
+                )}
+              </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-gray-500 text-sm font-medium">Campanhas Ativas</h3>
-              {isDataLoading ? (
-                <SkeletonText className="w-24 h-8 mt-2" />
-              ) : (
-                <p className="text-3xl font-semibold mt-2">{agencyData?.activeCampaigns || 0}</p>
-              )}
-            </div>
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <h3 className="text-gray-500 text-sm font-medium">Campanhas Ativas</h3>
+                {isDataLoading ? (
+                  <SkeletonText className="w-24 h-8 mt-2" />
+                ) : (
+                  <p className="text-3xl font-semibold mt-2">{agencyData?.activeCampaigns || 0}</p>
+                )}
+              </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-gray-500 text-sm font-medium">ROI Médio</h3>
-              {isDataLoading ? (
-                <SkeletonText className="w-24 h-8 mt-2" />
-              ) : (
-                <p className="text-3xl font-semibold mt-2">{agencyData?.averageROI || 0}%</p>
-              )}
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <h3 className="text-gray-500 text-sm font-medium">ROI Médio</h3>
+                {isDataLoading ? (
+                  <SkeletonText className="w-24 h-8 mt-2" />
+                ) : (
+                  <p className="text-3xl font-semibold mt-2">{agencyData?.averageROI || 0}%</p>
+                )}
+              </div>
             </div>
-          </div>
-
+          )}
+          {activeTab === "clients" && <ClientsContent />}
+          {activeTab === "campaigns" && <CampaignsContent />}
+          {activeTab === "analytics" && <AnalyticsContent />}
+          {activeTab === "settings" && <SettingsContent />}
           {/* Recent Activity */}
           <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold mb-4">Atividade Recente</h2>

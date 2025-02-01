@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import {
   Menu,
@@ -10,10 +12,6 @@ import {
   ChevronRight,
   Bell,
   Search,
-  TrendingUp,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   BarChart3,
   LogOut,
 } from "lucide-react"
@@ -22,7 +20,11 @@ import { auth, db } from "@/app/lib/firebase"
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import LoadingOverlay from "./LoadingOverlay"
-import { Skeleton, SkeletonText } from "./SkeletonLoading"
+import { DashboardContent } from "./client/DashboardContent"
+import { CampaignsContent } from "./client/CampaignsContent"
+import { ReportsContent } from "./client/ReportsContent"
+import { ScheduleMeetingContent } from "./client/ScheduleMeetingContent"
+import { SettingsContent } from "./client/SettingsContent"
 
 interface ClientData {
   name: string
@@ -59,84 +61,109 @@ export function ClientDashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [upcomingMeetings, setUpcomingMeetings] = useState<Meeting[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null) // Added state for error messages
   const router = useRouter()
 
   useEffect(() => {
-    const fetchClientData = async () => {
-      setIsDataLoading(true)
-      try {
-        const user = auth.currentUser
-        if (user) {
-          const userDoc = await getDoc(doc(db, "users", user.uid))
-          if (userDoc.exists()) {
-            const userData = userDoc.data()
-
-            // Fetch active campaigns
-            const campaignsQuery = query(
-              collection(db, "campaigns"),
-              where("clientId", "==", user.uid),
-              where("status", "==", "active"),
-            )
-            const campaignsSnapshot = await getDocs(campaignsQuery)
-            const activeCampaigns = campaignsSnapshot.size
-
-            // Calculate current ROI (assuming ROI is stored in each campaign document)
-            let totalROI = 0
-            campaignsSnapshot.forEach((doc) => {
-              totalROI += doc.data().roi || 0
-            })
-            const currentROI = activeCampaigns > 0 ? totalROI / activeCampaigns : 0
-
-            // Fetch next meeting
-            const meetingsQuery = query(
-              collection(db, "meetings"),
-              where("clientId", "==", user.uid),
-              where("date", ">=", new Date()),
-              orderBy("date"),
-              limit(1),
-            )
-            const meetingsSnapshot = await getDocs(meetingsQuery)
-            const nextMeeting = meetingsSnapshot.docs[0]?.data().date.toDate().toLocaleString() || "Não agendada"
-
-            setClientData({
-              name: userData.name,
-              activeCampaigns,
-              nextMeeting,
-              currentROI: Math.round(currentROI * 100) / 100, // Round to 2 decimal places
-            })
-
-            // Fetch campaign details
-            const campaignDetails = campaignsSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as Campaign[]
-            setCampaigns(campaignDetails)
-
-            // Fetch upcoming meetings
-            const upcomingMeetingsQuery = query(
-              collection(db, "meetings"),
-              where("clientId", "==", user.uid),
-              where("date", ">=", new Date()),
-              orderBy("date"),
-              limit(5),
-            )
-            const upcomingMeetingsSnapshot = await getDocs(upcomingMeetingsQuery)
-            const upcomingMeetingsData = upcomingMeetingsSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as Meeting[]
-            setUpcomingMeetings(upcomingMeetingsData)
-          }
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dados do cliente:", error)
-      } finally {
-        setIsDataLoading(false)
+    console.log("ClientDashboard mounted")
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        console.log("User authenticated:", user.uid)
+        fetchClientData()
+      } else {
+        console.log("No authenticated user, redirecting to home")
+        router.push("/")
       }
-    }
+    })
 
-    fetchClientData()
-  }, [])
+    return () => {
+      console.log("ClientDashboard unmounted")
+      unsubscribe()
+    }
+  }, [router])
+
+  const fetchClientData = async () => {
+    console.log("Fetching client data")
+    setIsDataLoading(true)
+    setErrorMessage(null)
+    try {
+      const user = auth.currentUser
+      if (!user) {
+        throw new Error("No authenticated user")
+      }
+      console.log("Fetching data for user:", user.uid)
+
+      const userDoc = await getDoc(doc(db, "users", user.uid))
+      if (!userDoc.exists()) {
+        throw new Error("User document does not exist")
+      }
+      const userData = userDoc.data()
+      console.log("User data fetched:", userData)
+
+      if (userData.userType !== "client") {
+        throw new Error("User is not a client")
+      }
+
+      setClientData({
+        name: userData.name,
+        activeCampaigns: userData.activeCampaigns || 0,
+        nextMeeting: userData.nextMeeting || "Não agendada",
+        currentROI: userData.currentROI || 0,
+      })
+
+      // Fetch campaigns
+      console.log("Fetching campaigns")
+      const campaignsQuery = query(
+        collection(db, "campaigns"),
+        where("clientId", "==", user.uid),
+        where("status", "==", "active"),
+      )
+      const campaignsSnapshot = await getDocs(campaignsQuery)
+      const campaignData = campaignsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Campaign[]
+      console.log("Campaigns fetched:", campaignData)
+      setCampaigns(campaignData)
+
+      // Fetch upcoming meetings
+      console.log("Fetching meetings")
+      try {
+        const meetingsQuery = query(
+          collection(db, "meetings"),
+          where("clientId", "==", user.uid),
+          where("date", ">=", new Date()),
+          orderBy("date"),
+          limit(5),
+        )
+        const meetingsSnapshot = await getDocs(meetingsQuery)
+        const meetingsData = meetingsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Meeting[]
+        console.log("Meetings fetched:", meetingsData)
+        setUpcomingMeetings(meetingsData)
+      } catch (error: any) {
+        console.error("Error fetching meetings:", error)
+        if (error.code === "failed-precondition") {
+          setErrorMessage("É necessário criar um índice para as reuniões. Por favor, contate o administrador.")
+        } else {
+          setUpcomingMeetings([])
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching client data:", error)
+      if (error.code === "permission-denied") {
+        setErrorMessage("Permissão negada. Por favor, verifique suas credenciais e tente novamente.")
+      } else if (error.message === "User is not a client") {
+        setErrorMessage("Acesso negado. Esta conta não é uma conta de cliente.")
+      } else {
+        setErrorMessage("Ocorreu um erro ao carregar os dados. Por favor, tente novamente.")
+      }
+    } finally {
+      setIsDataLoading(false)
+    }
+  }
 
   const handleLogout = async () => {
     setIsLoading(true)
@@ -152,9 +179,9 @@ export function ClientDashboard() {
 
   const menuItems = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { id: "campaigns", icon: FileText, label: "Campanhas" },
+    { id: "reports", icon: BarChart3, label: "Relatórios" },
     { id: "calendar", icon: Calendar, label: "Agendar Reunião" },
-    { id: "reports", icon: FileText, label: "Relatórios" },
-    { id: "chat", icon: MessageSquare, label: "Chat" },
     { id: "settings", icon: Settings, label: "Configurações" },
   ]
 
@@ -186,11 +213,7 @@ export function ClientDashboard() {
               <button
                 key={item.id}
                 onClick={() => {
-                  if (item.id === "calendar") {
-                    setShowMeetingModal(true)
-                  } else {
-                    setActiveTab(item.id)
-                  }
+                  setActiveTab(item.id)
                 }}
                 className={`w-full flex items-center p-4 hover:bg-blue-50 transition-colors ${
                   activeTab === item.id ? "bg-blue-50 text-blue-600" : "text-gray-700"
@@ -243,174 +266,17 @@ export function ClientDashboard() {
 
         {/* Dashboard Content */}
         <main className="p-6 overflow-auto h-[calc(100vh-4rem)]">
-          {/* Welcome Section */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-800">
-              {isDataLoading ? (
-                <SkeletonText className="w-64 h-8" />
-              ) : (
-                `Bem-vindo de volta, ${clientData?.name || "Cliente"}!`
-              )}
-            </h1>
-            <p className="text-gray-600">Aqui está o resumo das suas campanhas ativas</p>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-500 text-sm font-medium">Campanhas Ativas</h3>
-                <BarChart3 className="h-5 w-5 text-blue-500" />
-              </div>
-              {isDataLoading ? (
-                <SkeletonText className="w-24 h-8" />
-              ) : (
-                <p className="text-3xl font-semibold">{clientData?.activeCampaigns || 0}</p>
-              )}
+          {errorMessage && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <strong className="font-bold">Erro: </strong>
+              <span className="block sm:inline">{errorMessage}</span>
             </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-500 text-sm font-medium">Próxima Reunião</h3>
-                <Clock className="h-5 w-5 text-orange-500" />
-              </div>
-              {isDataLoading ? (
-                <SkeletonText className="w-36 h-6" />
-              ) : (
-                <p className="text-xl font-semibold">{clientData?.nextMeeting || "Não agendada"}</p>
-              )}
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-500 text-sm font-medium">ROI Atual</h3>
-                <TrendingUp className="h-5 w-5 text-green-500" />
-              </div>
-              {isDataLoading ? (
-                <SkeletonText className="w-24 h-8" />
-              ) : (
-                <p className="text-3xl font-semibold">{clientData?.currentROI || 0}%</p>
-              )}
-            </div>
-          </div>
-
-          {/* Active Campaigns */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-            <h2 className="text-lg font-semibold mb-4">Campanhas Ativas</h2>
-            <div className="space-y-6">
-              {isDataLoading ? (
-                [...Array(2)].map((_, index) => (
-                  <div key={index} className="border-b pb-6 last:border-0 last:pb-0">
-                    <div className="flex justify-between items-start mb-4">
-                      <SkeletonText className="w-48 h-6" />
-                      <SkeletonText className="w-24 h-6" />
-                    </div>
-                    <Skeleton className="w-full h-2.5 mb-4" />
-                    <div className="grid grid-cols-3 gap-4">
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i}>
-                          <SkeletonText className="w-16 h-4 mb-1" />
-                          <SkeletonText className="w-12 h-6" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : campaigns.length > 0 ? (
-                campaigns.map((campaign) => (
-                  <div key={campaign.id} className="border-b pb-6 last:border-0 last:pb-0">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-medium text-gray-800">{campaign.name}</h3>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
-                        </span>
-                      </div>
-                      <button className="text-blue-600 text-sm hover:underline">Ver detalhes</button>
-                    </div>
-
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${campaign.progress}%` }}></div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Alcance</p>
-                        <p className="font-semibold">{campaign.metrics.reach}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Engajamento</p>
-                        <p className="font-semibold">{campaign.metrics.engagement}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Conversão</p>
-                        <p className="font-semibold">{campaign.metrics.conversion}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500">Nenhuma campanha ativa no momento.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Upcoming Meetings */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Próximas Reuniões</h2>
-              <button
-                onClick={() => setShowMeetingModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Agendar Reunião
-              </button>
-            </div>
-            <div className="space-y-4">
-              {isDataLoading ? (
-                [...Array(2)].map((_, index) => (
-                  <div key={index} className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div>
-                        <SkeletonText className="w-32 h-5 mb-1" />
-                        <SkeletonText className="w-24 h-4" />
-                      </div>
-                    </div>
-                    <SkeletonText className="w-20 h-6" />
-                  </div>
-                ))
-              ) : upcomingMeetings.length > 0 ? (
-                upcomingMeetings.map((meeting) => (
-                  <div
-                    key={meeting.id}
-                    className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                          meeting.status === "confirmed" ? "bg-green-100" : "bg-orange-100"
-                        }`}
-                      >
-                        {meeting.status === "confirmed" ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <AlertCircle className="h-5 w-5 text-orange-600" />
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-medium">{meeting.title}</h4>
-                        <p className="text-sm text-gray-500">{meeting.date}</p>
-                      </div>
-                    </div>
-                    <button className="text-blue-600 text-sm hover:underline">Ver detalhes</button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500">Nenhuma reunião agendada.</p>
-              )}
-            </div>
-          </div>
+          )}
+          {activeTab === "dashboard" && <DashboardContent />}
+          {activeTab === "campaigns" && <CampaignsContent />}
+          {activeTab === "reports" && <ReportsContent />}
+          {activeTab === "calendar" && <ScheduleMeetingContent />}
+          {activeTab === "settings" && <SettingsContent />}
         </main>
       </div>
 
