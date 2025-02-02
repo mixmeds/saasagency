@@ -1,30 +1,62 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
+import { auth, db } from "@/app/lib/firebase"
+import { getDoc, doc, updateDoc } from "firebase/firestore"
+
+type UserData = {
+  uid: string
+  name: string
+  email: string
+}
 
 export function SettingsContent() {
-  const [name, setName] = useState("João Silva")
-  const [email, setEmail] = useState("joao.silva@example.com")
+  const [userData, setUserData] = useState<UserData | null>(null)
   const [notifications, setNotifications] = useState({
     email: true,
     push: false,
     sms: false,
   })
 
-  const handleSaveProfile = () => {
-    // Implement logic to save profile
-    console.log("Perfil salvo:", { name, email })
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const user = auth.currentUser
+      if (user) {
+        const userDoc = await getDoc(doc(db, "users", user.uid))
+        if (userDoc.exists()) {
+          setUserData(userDoc.data() as UserData)
+        }
+      }
+    }
+    fetchUserData()
+  }, [])
+
+  const handleSaveProfile = async () => {
+    if (userData) {
+      try {
+        await updateDoc(doc(db, "users", userData.uid), {
+          name: userData.name,
+          email: userData.email,
+        })
+        console.log("Perfil salvo:", { name: userData.name, email: userData.email })
+      } catch (error) {
+        console.error("Erro ao salvar perfil:", error)
+      }
+    }
   }
 
   const handleSaveNotifications = () => {
-    // Implement logic to save notification settings
     console.log("Configurações de notificação salvas:", notifications)
+  }
+
+  if (!userData) {
+    return <div>Carregando...</div>
   }
 
   return (
@@ -47,11 +79,20 @@ export function SettingsContent() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input
+                  id="name"
+                  value={userData.name}
+                  onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input
+                  id="email"
+                  type="email"
+                  value={userData.email}
+                  onChange={(e) => setUserData({ ...userData, email: e.target.value })}
+                />
               </div>
             </CardContent>
             <CardFooter>

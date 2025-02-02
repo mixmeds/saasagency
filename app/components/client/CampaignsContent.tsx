@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { collection, getDocs, query, where } from "firebase/firestore"
+import { db, auth } from "@/app/lib/firebase"
 
 interface Campaign {
   id: string
@@ -16,16 +18,40 @@ interface Campaign {
   performance: number
 }
 
-const mockCampaigns: Campaign[] = [
-  { id: "1", name: "Summer Sale", status: "active", budget: 5000, spent: 2500, performance: 120 },
-  { id: "2", name: "Product Launch", status: "active", budget: 10000, spent: 8000, performance: 95 },
-  { id: "3", name: "Brand Awareness", status: "paused", budget: 3000, spent: 1500, performance: 80 },
-  { id: "4", name: "Holiday Special", status: "completed", budget: 7000, spent: 7000, performance: 150 },
-]
-
 export function CampaignsContent() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [campaigns, setCampaigns] = useState<Campaign[]>(mockCampaigns)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const user = auth.currentUser
+        if (!user) throw new Error("No authenticated user")
+
+        const campaignsQuery = query(collection(db, "campaigns"), where("clientId", "==", user.uid))
+        const campaignsSnapshot = await getDocs(campaignsQuery)
+        const campaignsData = campaignsSnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            }) as Campaign,
+        )
+        setCampaigns(campaignsData)
+      } catch (err) {
+        console.error("Error fetching campaigns:", err)
+        setError("Failed to load campaigns. Please try again.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCampaigns()
+  }, [])
 
   const filteredCampaigns = campaigns.filter((campaign) =>
     campaign.name.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -43,6 +69,9 @@ export function CampaignsContent() {
         return "bg-gray-100 text-gray-800"
     }
   }
+
+  if (isLoading) return <div>Loading campaigns...</div>
+  if (error) return <div>Error: {error}</div>
 
   return (
     <div className="p-6">

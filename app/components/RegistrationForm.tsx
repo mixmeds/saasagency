@@ -68,7 +68,7 @@ export default function RegistrationForm({ userType, onSwitchToLogin, setIsLoadi
         onSwitchToLogin()
       }, 3000)
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message || "An error occurred during registration")
     } finally {
       setIsLoading(false)
     }

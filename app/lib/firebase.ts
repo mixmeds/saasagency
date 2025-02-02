@@ -50,7 +50,9 @@ export const registerUser = async (
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password)
     const user = userCredential.user
-    await setDoc(doc(db, "users", user.uid), {
+
+    const userData: UserData = {
+      uid: user.uid,
       email,
       name,
       userType,
@@ -58,7 +60,32 @@ export const registerUser = async (
       ...(userType === "agency"
         ? { activeClients: 0, activeCampaigns: 0, averageROI: 0 }
         : { associatedAgency: null, activeServices: [] }),
-    })
+    }
+
+    await setDoc(doc(db, "users", user.uid), userData)
+
+    if (userType === "agency") {
+      await setDoc(doc(db, "analytics", user.uid), {
+        agencyId: user.uid,
+        totalRevenue: 0,
+        activeClients: 0,
+        activeCampaigns: 0,
+        averageROI: 0,
+        performanceData: [],
+        campaignPerformance: [],
+      })
+    } else {
+      await setDoc(doc(db, "clientDashboard", user.uid), {
+        clientId: user.uid,
+        activeCampaigns: 0,
+        averageROI: 0,
+        totalReach: 0,
+        totalConversions: 0,
+        campaignPerformance: [],
+        roiData: [],
+      })
+    }
+
     console.log("User registered successfully:", user.uid)
     return user
   } catch (error: any) {

@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search } from "lucide-react"
+import { collection, getDocs, query, where } from "firebase/firestore"
+import { db, auth } from "@/app/lib/firebase"
 
 interface Client {
   id: string
@@ -14,21 +16,49 @@ interface Client {
   totalSpend: number
 }
 
-const mockClients: Client[] = [
-  { id: "1", name: "Acme Corp", email: "contact@acme.com", activeCampaigns: 3, totalSpend: 15000 },
-  { id: "2", name: "Global Tech", email: "info@globaltech.com", activeCampaigns: 2, totalSpend: 8000 },
-  { id: "3", name: "Local Shop", email: "owner@localshop.com", activeCampaigns: 1, totalSpend: 3000 },
-]
-
 export function ClientsContent() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [clients, setClients] = useState<Client[]>(mockClients)
+  const [clients, setClients] = useState<Client[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const user = auth.currentUser
+        if (!user) throw new Error("No authenticated user")
+
+        const clientsQuery = query(collection(db, "clients"), where("agencyId", "==", user.uid))
+        const clientsSnapshot = await getDocs(clientsQuery)
+        const clientsData = clientsSnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            }) as Client,
+        )
+        setClients(clientsData)
+      } catch (err) {
+        console.error("Error fetching clients:", err)
+        setError("Failed to load clients. Please try again.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchClients()
+  }, [])
 
   const filteredClients = clients.filter(
     (client) =>
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  if (isLoading) return <div>Loading clients...</div>
+  if (error) return <div>Error: {error}</div>
 
   return (
     <div className="p-6">

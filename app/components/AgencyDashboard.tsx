@@ -25,6 +25,7 @@ import { ClientsContent } from "./agency/ClientsContent"
 import { CampaignsContent } from "./agency/CampaignsContent"
 import { AnalyticsContent } from "./agency/AnalyticsContent"
 import { SettingsContent } from "./agency/SettingsContent"
+import { DashboardContent } from "./agency/DashboardContent"
 
 interface AgencyData {
   name: string
@@ -49,6 +50,10 @@ export function AgencyDashboard() {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Removed: console.log("Active Tab:", activeTab)
+  }, [activeTab])
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -171,7 +176,7 @@ export function AgencyDashboard() {
             {menuItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => setActiveTab(item.id)} // Updated onClick handler
                 className={`w-full flex items-center p-4 hover:bg-blue-50 transition-colors ${
                   activeTab === item.id ? "bg-blue-50 text-blue-600" : "text-gray-700"
                 }`}
@@ -229,37 +234,7 @@ export function AgencyDashboard() {
               <span className="block sm:inline">{errorMessage}</span>
             </div>
           )}
-          {activeTab === "dashboard" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Quick Stats */}
-              <div className="bg-white p-6 rounded-xl shadow-sm">
-                <h3 className="text-gray-500 text-sm font-medium">Clientes Ativos</h3>
-                {isDataLoading ? (
-                  <SkeletonText className="w-24 h-8 mt-2" />
-                ) : (
-                  <p className="text-3xl font-semibold mt-2">{agencyData?.activeClients || 0}</p>
-                )}
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm">
-                <h3 className="text-gray-500 text-sm font-medium">Campanhas Ativas</h3>
-                {isDataLoading ? (
-                  <SkeletonText className="w-24 h-8 mt-2" />
-                ) : (
-                  <p className="text-3xl font-semibold mt-2">{agencyData?.activeCampaigns || 0}</p>
-                )}
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm">
-                <h3 className="text-gray-500 text-sm font-medium">ROI Médio</h3>
-                {isDataLoading ? (
-                  <SkeletonText className="w-24 h-8 mt-2" />
-                ) : (
-                  <p className="text-3xl font-semibold mt-2">{agencyData?.averageROI || 0}%</p>
-                )}
-              </div>
-            </div>
-          )}
+          {activeTab === "dashboard" && <DashboardContent />}
           {activeTab === "clients" && <ClientsContent />}
           {activeTab === "campaigns" && <CampaignsContent />}
           {activeTab === "analytics" && <AnalyticsContent />}
