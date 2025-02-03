@@ -2,17 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, Users, BarChart, DollarSign } from "lucide-react"
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
+import { Users, BarChart, DollarSign, FileText } from "lucide-react"
+import { collection, getDocs, query, where, limit, orderBy } from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
-import { Skeleton, SkeletonText } from "../SkeletonLoading"
-
-interface RecentActivity {
-  id: string
-  type: string
-  description: string
-  time: string
-}
 
 interface DashboardSummary {
   totalClients: number
@@ -22,7 +14,6 @@ interface DashboardSummary {
 }
 
 export function DashboardContent() {
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<DashboardSummary>({
@@ -31,6 +22,7 @@ export function DashboardContent() {
     totalRevenue: 0,
     averageROI: 0,
   })
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -50,18 +42,38 @@ export function DashboardContent() {
         }
 
         // Fetch recent activity
-        const activityQuery = query(
-          collection(db, "recentActivity"),
-          where("agencyId", "==", user.uid),
-          orderBy("time", "desc"),
-          limit(5),
-        )
-        const activitySnapshot = await getDocs(activityQuery)
-        const activityData = activitySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as RecentActivity[]
-        setRecentActivity(activityData)
+        try {
+          const recentActivityQuery = query(
+            collection(db, "recentActivity"),
+            where("agencyId", "==", user.uid),
+            orderBy("timestamp", "desc"),
+            limit(5),
+          )
+          const recentActivitySnapshot = await getDocs(recentActivityQuery)
+          const recentActivityData = recentActivitySnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          setRecentActivity(recentActivityData)
+        } catch (activityError: any) {
+          console.error("Error fetching recent activity:", activityError)
+          if (activityError.code === "failed-precondition") {
+            // Fallback to a simpler query without ordering
+            const simpleRecentActivityQuery = query(
+              collection(db, "recentActivity"),
+              where("agencyId", "==", user.uid),
+              limit(5),
+            )
+            const recentActivitySnapshot = await getDocs(simpleRecentActivityQuery)
+            const recentActivityData = recentActivitySnapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
+            setRecentActivity(recentActivityData)
+          } else {
+            throw activityError
+          }
+        }
       } catch (err: any) {
         console.error("Error fetching dashboard data:", err)
         if (err.code === "failed-precondition") {
@@ -125,20 +137,8 @@ export function DashboardContent() {
       <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
         <h2 className="text-lg font-semibold mb-4">Atividade Recente</h2>
         <div className="space-y-4">
-          {isLoading ? (
-            [...Array(3)].map((_, index) => (
-              <div key={index} className="flex items-center gap-4">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div className="flex-1">
-                  <SkeletonText className="w-3/4 h-4 mb-2" />
-                  <SkeletonText className="w-1/2 h-3" />
-                </div>
-              </div>
-            ))
-          ) : error ? (
-            <p className="text-red-500">{error}</p>
-          ) : recentActivity.length > 0 ? (
-            recentActivity.map((activity) => (
+          {recentActivity.length > 0 ? (
+            recentActivity.map((activity: any) => (
               <div
                 key={activity.id}
                 className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-lg transition-colors"
@@ -148,7 +148,7 @@ export function DashboardContent() {
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium">{activity.description}</h4>
-                  <p className="text-sm text-gray-500">{activity.time}</p>
+                  <p className="text-sm text-gray-500">{new Date(activity.timestamp.toDate()).toLocaleString()}</p>
                 </div>
               </div>
             ))

@@ -20,7 +20,6 @@ import { auth, db } from "@/app/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import LoadingOverlay from "./LoadingOverlay"
-import { Skeleton, SkeletonText } from "./SkeletonLoading"
 import { ClientsContent } from "./agency/ClientsContent"
 import { CampaignsContent } from "./agency/CampaignsContent"
 import { AnalyticsContent } from "./agency/AnalyticsContent"
@@ -34,20 +33,12 @@ interface AgencyData {
   averageROI: number
 }
 
-interface RecentActivity {
-  id: string
-  type: string
-  description: string
-  time: string
-}
-
 export function AgencyDashboard() {
   const [isExpanded, setIsExpanded] = useState(true)
   const [activeTab, setActiveTab] = useState("dashboard")
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [agencyData, setAgencyData] = useState<AgencyData | null>(null)
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -101,7 +92,6 @@ export function AgencyDashboard() {
       })
 
       // Clear recent activity for now
-      setRecentActivity([])
     } catch (error: any) {
       console.error("Erro ao carregar dados da agência:", error)
       if (error.code === "permission-denied") {
@@ -123,7 +113,6 @@ export function AgencyDashboard() {
         activeCampaigns: 0,
         averageROI: 0,
       })
-      setRecentActivity([])
     } finally {
       setIsDataLoading(false)
     }
@@ -239,40 +228,6 @@ export function AgencyDashboard() {
           {activeTab === "campaigns" && <CampaignsContent />}
           {activeTab === "analytics" && <AnalyticsContent />}
           {activeTab === "settings" && <SettingsContent />}
-          {/* Recent Activity */}
-          <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold mb-4">Atividade Recente</h2>
-            <div className="space-y-4">
-              {isDataLoading ? (
-                [...Array(3)].map((_, index) => (
-                  <div key={index} className="flex items-center gap-4">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1">
-                      <SkeletonText className="w-3/4 h-4 mb-2" />
-                      <SkeletonText className="w-1/2 h-3" />
-                    </div>
-                  </div>
-                ))
-              ) : recentActivity.length > 0 ? (
-                recentActivity.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-lg transition-colors"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">{activity.description}</h4>
-                      <p className="text-sm text-gray-500">{activity.time}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500">Nenhuma atividade recente encontrada.</p>
-              )}
-            </div>
-          </div>
         </main>
       </div>
       <LoadingOverlay isLoading={isLoading} />
