@@ -61,10 +61,12 @@
     "@emotion/is-prop-valid": "latest",
     "@auth/core": "latest",
     "nodemailer": "latest",
+    "chart.js": "latest",
     "framer-motion": "latest",
     "react-icons": "latest",
     "firebase": "latest",
-    "next-auth": "latest"
+    "next-auth": "latest",
+    "react-chartjs-2": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

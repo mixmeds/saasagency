@@ -6,9 +6,11 @@ import { onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/app/lib/firebase"
 import { AgencyDashboard } from "@/app/components/AgencyDashboard"
+import { ClientsContent } from "@/app/components/agency/ClientsContent"
 
 export default function AgencyHome() {
   const [userName, setUserName] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("dashboard")
   const router = useRouter()
 
   useEffect(() => {
@@ -32,6 +34,11 @@ export default function AgencyHome() {
     return <div>Loading...</div>
   }
 
-  return <AgencyDashboard />
+  return (
+    <div>
+      <AgencyDashboard activeTab={activeTab} setActiveTab={setActiveTab} />
+      {activeTab === "clients" && <ClientsContent />}
+    </div>
+  )
 }
 
