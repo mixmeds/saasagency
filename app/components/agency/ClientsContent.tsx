@@ -36,6 +36,7 @@ export function ClientsContent() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [lastVisible, setLastVisible] = useState<any>(null)
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null)
 
   const fetchClients = useCallback(async (searchTerm = "", startAfterDoc = null) => {
     setIsLoading(true)
@@ -114,17 +115,8 @@ export function ClientsContent() {
     setSelectedClient(null)
   }
 
-  const handleDeleteClient = async (clientId: string) => {
-    if (window.confirm("Tem certeza que deseja excluir este cliente?")) {
-      try {
-        await deleteDoc(doc(db, "clients", clientId))
-        fetchClients()
-        setSelectedClient(null)
-      } catch (err) {
-        console.error("Erro ao excluir cliente:", err)
-        setError("Falha ao excluir cliente. Por favor, tente novamente.")
-      }
-    }
+  const handleDeleteClient = (clientId: string) => {
+    setClientToDelete(clientId)
   }
 
   const toggleExpand = (clientId: string) => {
@@ -249,11 +241,15 @@ export function ClientsContent() {
       </Table>
 
       {isLoading && (
-        <div className="space-y-4">
-          <SkeletonText className="h-8 w-1/4" />
-          <SkeletonText className="h-4 w-3/4" />
-          <SkeletonText className="h-4 w-2/3" />
-          <SkeletonText className="h-4 w-1/2" />
+        <div className="space-y-4 mt-4">
+          {[...Array(5)].map((_, index) => (
+            <div key={index} className="flex items-center space-x-4">
+              <SkeletonText className="h-6 w-1/4" />
+              <SkeletonText className="h-6 w-1/4" />
+              <SkeletonText className="h-6 w-1/4" />
+              <SkeletonText className="h-6 w-1/4" />
+            </div>
+          ))}
         </div>
       )}
 
@@ -276,6 +272,36 @@ export function ClientsContent() {
             onClose={() => setSelectedClient(null)}
           />
         )}
+      </Modal>
+
+      <Modal isOpen={!!clientToDelete} onClose={() => setClientToDelete(null)}>
+        <div className="p-6">
+          <h2 className="text-xl font-bold mb-4">Confirmar Exclusão</h2>
+          <p className="mb-4">Tem certeza que deseja excluir este cliente?</p>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setClientToDelete(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (clientToDelete) {
+                  try {
+                    await deleteDoc(doc(db, "clients", clientToDelete))
+                    fetchClients()
+                    setSelectedClient(null)
+                    setClientToDelete(null)
+                  } catch (err) {
+                    console.error("Erro ao excluir cliente:", err)
+                    setError("Falha ao excluir cliente. Por favor, tente novamente.")
+                  }
+                }
+              }}
+            >
+              Confirmar Exclusão
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

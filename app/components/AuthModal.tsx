@@ -17,10 +17,11 @@ const setBodyScroll = (enable: boolean) => {
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
+  initialView?: "login" | "register"
 }
 
-export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const [isLogin, setIsLogin] = useState(true)
+export default function AuthModal({ isOpen, onClose, initialView = "login" }: AuthModalProps) {
+  const [isLogin, setIsLogin] = useState(initialView === "login")
   const [userType, setUserType] = useState<"agency" | "client">("client")
   const [isLoading, setIsLoading] = useState(false)
   const [mountModal, setMountModal] = useState(false)
@@ -61,6 +62,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   }, [isOpen])
 
+  const handleClose = () => {
+    onClose()
+    // Reset to login view when closing the modal
+    setIsLogin(true)
+  }
+
   if (!mountModal) return null
 
   return (
@@ -81,7 +88,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             className="bg-white rounded-lg w-full max-w-md relative"
           >
             <div className="p-8">
-              <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+              <button onClick={handleClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
                 <X size={24} />
               </button>
               <h2 className="text-2xl font-bold mb-6">{isLogin ? "Login" : "Cadastro"}</h2>

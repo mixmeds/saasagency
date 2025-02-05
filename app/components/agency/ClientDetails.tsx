@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"
 import { db } from "@/app/lib/firebase"
-import { Trash2 } from "lucide-react"
+import { Trash2, Loader2 } from "lucide-react"
 import { SkeletonText } from "../SkeletonLoading"
 
 interface Client {
@@ -190,17 +190,9 @@ export function ClientDetails({ client, onUpdate, onDelete, onClose }: ClientDet
               Cancelar
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Salvando..." : "Salvar Alterações"}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar Alterações"}
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                // Aqui você pode implementar um modal de confirmação personalizado
-                // Por enquanto, vamos apenas chamar onDelete diretamente
-                onDelete()
-              }}
-            >
+            <Button type="button" variant="destructive" onClick={onDelete}>
               Excluir Cliente
             </Button>
           </div>

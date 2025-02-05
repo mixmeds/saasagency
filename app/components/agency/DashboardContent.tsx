@@ -3,7 +3,18 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, BarChart, DollarSign, FileText } from "lucide-react"
-import { collection, getDocs, query, where, limit, orderBy } from "firebase/firestore"
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  limit,
+  orderBy,
+  setDoc,
+  doc,
+  updateDoc,
+  type Timestamp,
+} from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
 
 interface DashboardSummary {
@@ -11,6 +22,12 @@ interface DashboardSummary {
   activeCampaigns: number
   totalRevenue: number
   averageROI: number
+}
+
+interface RecentActivity {
+  id: string
+  description: string
+  timestamp: Timestamp
 }
 
 export function DashboardContent() {
@@ -22,7 +39,7 @@ export function DashboardContent() {
     totalRevenue: 0,
     averageROI: 0,
   })
-  const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -39,55 +56,58 @@ export function DashboardContent() {
         if (!summaryDoc.empty) {
           const summaryData = summaryDoc.docs[0].data() as DashboardSummary
           setSummary(summaryData)
+        } else {
+          // If no summary exists, create one with initial values
+          const initialSummary: DashboardSummary = {
+            totalClients: 0,
+            activeCampaigns: 0,
+            totalRevenue: 0,
+            averageROI: 0
+          }
+          await setDoc(doc(db, "agencySummary", user.uid), {
+            ...initialSummary,
+            agencyId: user.uid
+          })
+          setSummary(initialSummary)
+        }
+
+        // Fetch total number of clients
+        const clientsSnapshot = await getDocs(
+          query(collection(db, "clients"), where("agencyId", "==", user.uid))
+        )
+        const totalClients = clientsSnapshot.size
+
+        // Update the summary with the correct number of clients
+        if (totalClients !== summary.totalClients) {
+          const updatedSummary = { ...summary, totalClients }
+          await updateDoc(doc(db, "agencySummary", user.uid), { totalClients })
+          setSummary(updatedSummary)
         }
 
         // Fetch recent activity
-        try {
-          const recentActivityQuery = query(
-            collection(db, "recentActivity"),
-            where("agencyId", "==", user.uid),
-            orderBy("timestamp", "desc"),
-            limit(5),
-          )
-          const recentActivitySnapshot = await getDocs(recentActivityQuery)
-          const recentActivityData = recentActivitySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-          setRecentActivity(recentActivityData)
-        } catch (activityError: any) {
-          console.error("Error fetching recent activity:", activityError)
-          if (activityError.code === "failed-precondition") {
-            // Fallback to a simpler query without ordering
-            const simpleRecentActivityQuery = query(
-              collection(db, "recentActivity"),
-              where("agencyId", "==", user.uid),
-              limit(5),
-            )
-            const recentActivitySnapshot = await getDocs(simpleRecentActivityQuery)
-            const recentActivityData = recentActivitySnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }))
-            setRecentActivity(recentActivityData)
-          } else {
-            throw activityError
-          }
-        }
+        const recentActivityQuery = query(
+          collection(db, "recentActivity"),
+          where("agencyId", "==", user.uid),
+          orderBy("timestamp", "desc"),
+          limit(5),
+        )
+        const recentActivitySnapshot = await getDocs(recentActivityQuery)
+        const recentActivityData = recentActivitySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as RecentActivity[]
+        setRecentActivity(recentActivityData)
+
       } catch (err: any) {
         console.error("Error fetching dashboard data:", err)
-        if (err.code === "failed-precondition") {
-          setError("É necessário criar um índice para as atividades recentes. Por favor, contate o administrador.")
-        } else {
-          setError("Falha ao carregar dados do dashboard. Por favor, tente novamente.")
-        }
+        setError("Falha ao carregar dados do dashboard. Por favor, tente novamente.")
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchDashboardData()
-  }, [])
+  }, [summary]) // Added summary to the dependency array
 
   return (
     <div className="p-6">
@@ -138,7 +158,7 @@ export function DashboardContent() {
         <h2 className="text-lg font-semibold mb-4">Atividade Recente</h2>
         <div className="space-y-4">
           {recentActivity.length > 0 ? (
-            recentActivity.map((activity: any) => (
+            recentActivity.map((activity) => (
               <div
                 key={activity.id}
                 className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-lg transition-colors"
@@ -148,7 +168,7 @@ export function DashboardContent() {
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium">{activity.description}</h4>
-                  <p className="text-sm text-gray-500">{new Date(activity.timestamp.toDate()).toLocaleString()}</p>
+                  <p className="text-sm text-gray-500">{activity.timestamp.toDate().toLocaleString()}</p>
                 </div>
               </div>
             ))

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { addDoc, collection } from "firebase/firestore"
+import { addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
 
 interface AddClientFormProps {
@@ -50,11 +50,19 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
         ...formData,
         telefone: `${formData.telefonePrefix}${formData.telefone}`,
         agencyId: user.uid,
-        dataCriacao: new Date(),
+        dataCriacao: serverTimestamp(),
         anotacoes: formData.anotacao ? [formData.anotacao] : [],
       }
 
-      await addDoc(collection(db, "clients"), newClient)
+      const clientDocRef = await addDoc(collection(db, "clients"), newClient)
+
+      // Add recent activity
+      await addDoc(collection(db, "recentActivity"), {
+        agencyId: user.uid,
+        description: `Novo cliente adicionado: ${formData.nome}`,
+        timestamp: serverTimestamp(),
+      })
+
       onClientAdded()
     } catch (err) {
       console.error("Erro ao adicionar novo cliente:", err)

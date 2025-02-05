@@ -3,7 +3,11 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { loginUser } from "../lib/firebase"
-import WelcomeNotification from "./WelcomeNotification"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { SkeletonText } from "./SkeletonLoading"
+import { Loader2 } from "lucide-react"
 
 interface LoginFormProps {
   onSwitchToRegister: () => void
@@ -14,84 +18,70 @@ export default function LoginForm({ onSwitchToRegister, setIsLoading }: LoginFor
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [showWelcomeNotification, setShowWelcomeNotification] = useState(false)
-  const [userData, setUserData] = useState<{ name: string; userType: "agency" | "client" } | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsSubmitting(true)
     setError(null)
 
     try {
       const user = await loginUser(email, password)
-      setUserData({
-        name: user.name,
-        userType: user.userType,
-      })
-      setShowWelcomeNotification(true)
-
-      // Redirect based on user type immediately
       const redirectPath = user.userType === "agency" ? "/agency/home" : "/client/home"
       router.push(redirectPath)
     } catch (error: any) {
       setError(error.message || "An error occurred during login")
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
+  if (isSubmitting) {
+    return (
+      <div className="space-y-4">
+        <SkeletonText className="h-10 w-full" />
+        <SkeletonText className="h-10 w-full" />
+        <SkeletonText className="h-10 w-full" />
+      </div>
+    )
+  }
+
   return (
-    <>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="text-red-500 text-sm">{error}</div>}
-        <div>
-          <label htmlFor="email" className="block mb-1">
-            Email
-          </label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="block mb-1">
-            Senha
-          </label>
-          <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition-colors"
-        >
-          Entrar
-        </button>
-        <p className="text-center text-sm">
-          Ainda não tem uma conta?{" "}
-          <button onClick={onSwitchToRegister} className="text-blue-500 hover:underline">
-            Cadastre-se aqui
-          </button>
-        </p>
-      </form>
-      {showWelcomeNotification && userData && (
-        <WelcomeNotification
-          userName={userData.name}
-          userType={userData.userType}
-          onClose={() => setShowWelcomeNotification(false)}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="text-red-500 text-sm">{error}</div>}
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input
+          type="email"
+          id="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full"
+          required
         />
-      )}
-    </>
+      </div>
+      <div>
+        <Label htmlFor="password">Senha</Label>
+        <Input
+          type="password"
+          id="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full"
+          required
+        />
+      </div>
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
+      </Button>
+      <p className="text-center text-sm">
+        Ainda não tem uma conta?{" "}
+        <button onClick={onSwitchToRegister} className="text-blue-500 hover:underline">
+          Cadastre-se aqui
+        </button>
+      </p>
+    </form>
   )
 }
 

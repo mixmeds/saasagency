@@ -7,6 +7,7 @@ import AuthModal from "./AuthModal"
 export default function Header() {
   const [isSticky, setIsSticky] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalView, setModalView] = useState<"login" | "register">("login")
 
   useEffect(() => {
     const handleScroll = () => {
@@ -24,6 +25,11 @@ export default function Header() {
     if (element) {
       element.scrollIntoView({ behavior: "smooth" })
     }
+  }
+
+  const handleOpenModal = () => {
+    setModalView("login")
+    setIsModalOpen(true)
   }
 
   return (
@@ -53,7 +59,7 @@ export default function Header() {
             </li>
           </ul>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenModal}
             className="flex items-center space-x-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
           >
             <User size={18} />
@@ -61,7 +67,7 @@ export default function Header() {
           </button>
         </nav>
       </header>
-      <AuthModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AuthModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} initialView={modalView} />
     </>
   )
 }
