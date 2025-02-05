@@ -11,6 +11,8 @@ import { Modal } from "../Modal"
 import { ClientDetails } from "./ClientDetails"
 import { ClientStatusChart } from "./ClientStatusChart"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import React from "react"
+import { SkeletonText } from "../SkeletonLoading"
 
 interface Client {
   id: string
@@ -183,7 +185,7 @@ export function ClientsContent() {
         </TableHeader>
         <TableBody>
           {clients.map((client) => (
-            <>
+            <React.Fragment key={client.id}>
               <TableRow key={client.id} className="hover:bg-gray-50">
                 <TableCell className="font-medium">{client.nome}</TableCell>
                 <TableCell>{client.email}</TableCell>
@@ -225,7 +227,7 @@ export function ClientsContent() {
                         <strong>Anotações:</strong>
                         <ul className="list-disc list-inside pl-4">
                           {client.anotacoes.map((anotacao, index) => (
-                            <li key={index}>{anotacao}</li>
+                            <li key={`${client.id}-anotacao-${index}`}>{anotacao}</li>
                           ))}
                         </ul>
                       </div>
@@ -241,12 +243,19 @@ export function ClientsContent() {
                   </TableCell>
                 </TableRow>
               )}
-            </>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
 
-      {isLoading && <div className="text-center mt-4">Carregando...</div>}
+      {isLoading && (
+        <div className="space-y-4">
+          <SkeletonText className="h-8 w-1/4" />
+          <SkeletonText className="h-4 w-3/4" />
+          <SkeletonText className="h-4 w-2/3" />
+          <SkeletonText className="h-4 w-1/2" />
+        </div>
+      )}
 
       {!isLoading && lastVisible && (
         <div className="text-center mt-4">
