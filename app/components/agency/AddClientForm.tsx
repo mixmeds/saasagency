@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
 
@@ -24,6 +25,9 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
     endereco: "",
     status: "Potencial" as "Potencial" | "Em negociação" | "Fechado" | "Perdido",
     anotacao: "",
+    documentType: "cpf" as "cpf" | "cnpj",
+    document: "",
+    documentDisabled: false,
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +39,34 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
 
   const handleStatusChange = (value: string) => {
     setFormData((prev) => ({ ...prev, status: value as "Potencial" | "Em negociação" | "Fechado" | "Perdido" }))
+  }
+
+  const handleDocumentTypeChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, documentType: value as "cpf" | "cnpj", document: "" }))
+  }
+
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target
+    const formattedValue = formatDocument(value, formData.documentType)
+    setFormData((prev) => ({ ...prev, document: formattedValue }))
+  }
+
+  const formatDocument = (value: string, type: "cpf" | "cnpj") => {
+    const numbers = value.replace(/\D/g, "")
+    if (type === "cpf") {
+      return numbers
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+        .replace(/(-\d{2})\d+?$/, "$1")
+    } else {
+      return numbers
+        .replace(/(\d{2})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1/$2")
+        .replace(/(\d{4})(\d)/, "$1-$2")
+        .replace(/(-\d{2})\d+?$/, "$1")
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,7 +81,7 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
       const newClient = {
         ...formData,
         telefone: `${formData.telefonePrefix}${formData.telefone}`,
-        agencyId: user.uid,
+        agencyId: user.uid, // Explicitamente definindo o agencyId
         dataCriacao: serverTimestamp(),
         anotacoes: formData.anotacao ? [formData.anotacao] : [],
       }
@@ -58,7 +90,7 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
 
       // Add recent activity
       await addDoc(collection(db, "recentActivity"), {
-        agencyId: user.uid,
+        agencyId: user.uid, // Explicitamente definindo o agencyId
         description: `Novo cliente adicionado: ${formData.nome}`,
         timestamp: serverTimestamp(),
       })
@@ -99,6 +131,40 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
       <div>
         <Label htmlFor="endereco">Endereço</Label>
         <Input id="endereco" name="endereco" value={formData.endereco} onChange={handleChange} />
+      </div>
+      <div>
+        <Label htmlFor="documentType">Tipo de Documento</Label>
+        <Select onValueChange={handleDocumentTypeChange} defaultValue={formData.documentType}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione o tipo de documento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cpf">CPF</SelectItem>
+            <SelectItem value="cnpj">CNPJ</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="document">{formData.documentType.toUpperCase()}</Label>
+        <Input
+          id="document"
+          name="document"
+          value={formData.document}
+          onChange={handleDocumentChange}
+          placeholder={`Digite o ${formData.documentType.toUpperCase()}`}
+          disabled={formData.documentDisabled}
+          required={!formData.documentDisabled}
+        />
+      </div>
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="documentDisabled"
+          checked={formData.documentDisabled}
+          onCheckedChange={(checked) =>
+            setFormData((prev) => ({ ...prev, documentDisabled: checked as boolean, document: "" }))
+          }
+        />
+        <Label htmlFor="documentDisabled">Não informar {formData.documentType.toUpperCase()}</Label>
       </div>
       <div>
         <Label htmlFor="status">Status</Label>

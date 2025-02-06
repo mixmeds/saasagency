@@ -3,8 +3,20 @@
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Edit, ChevronDown, ChevronUp, MessageCircle } from "lucide-react"
-import { collection, query, where, orderBy, limit, startAfter, getDocs, deleteDoc, doc } from "firebase/firestore"
+import { Plus, Search, Edit, ChevronDown, ChevronUp, MessageCircle, Users, UserPlus, FileSearch } from "lucide-react"
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  deleteDoc,
+  doc,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
 import { AddClientForm } from "./AddClientForm"
 import { Modal } from "../Modal"
@@ -13,6 +25,7 @@ import { ClientStatusChart } from "./ClientStatusChart"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import React from "react"
 import { SkeletonText } from "../SkeletonLoading"
+import { AdvancedSearchModal } from "../AdvancedSearchModal"
 
 interface Client {
   id: string
@@ -25,6 +38,7 @@ interface Client {
   anotacoes: string[]
   dataCriacao: Date
   agencyId: string
+  documento: string
 }
 
 export function ClientsContent() {
@@ -37,8 +51,9 @@ export function ClientsContent() {
   const [lastVisible, setLastVisible] = useState<any>(null)
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
   const [clientToDelete, setClientToDelete] = useState<string | null>(null)
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
 
-  const fetchClients = useCallback(async (searchTerm = "", startAfterDoc = null) => {
+  const fetchClients = useCallback(async (searchParams: any = {}, startAfterDoc = null) => {
     setIsLoading(true)
     setError(null)
     try {
@@ -51,6 +66,30 @@ export function ClientsContent() {
         orderBy("dataCriacao", "desc"),
         limit(10),
       )
+
+      if (searchParams.nome) {
+        clientsQuery = query(
+          clientsQuery,
+          where("nome", ">=", searchParams.nome),
+          where("nome", "<=", searchParams.nome + "\uf8ff"),
+        )
+      }
+      if (searchParams.email) {
+        clientsQuery = query(clientsQuery, where("email", "==", searchParams.email))
+      }
+      if (searchParams.telefone) {
+        clientsQuery = query(clientsQuery, where("telefone", "==", searchParams.telefone))
+      }
+      if (searchParams.empresa) {
+        clientsQuery = query(
+          clientsQuery,
+          where("empresa", ">=", searchParams.empresa),
+          where("empresa", "<=", searchParams.empresa + "\uf8ff"),
+        )
+      }
+      if (searchParams.documento) {
+        clientsQuery = query(clientsQuery, where("documento", "==", searchParams.documento))
+      }
 
       if (startAfterDoc) {
         clientsQuery = query(clientsQuery, startAfter(startAfterDoc))
@@ -67,11 +106,7 @@ export function ClientsContent() {
           }) as Client,
       )
 
-      const filteredClients = searchTerm
-        ? clientsData.filter((client) => client.nome.toLowerCase().includes(searchTerm.toLowerCase()))
-        : clientsData
-
-      setClients((prevClients) => (startAfterDoc ? [...prevClients, ...filteredClients] : filteredClients))
+      setClients((prevClients) => (startAfterDoc ? [...prevClients, ...clientsData] : clientsData))
       setLastVisible(clientsSnapshot.docs[clientsSnapshot.docs.length - 1])
     } catch (err: any) {
       console.error("Erro ao buscar clientes:", err)
@@ -88,12 +123,12 @@ export function ClientsContent() {
   const handleSearch = () => {
     setClients([])
     setLastVisible(null)
-    fetchClients(searchTerm)
+    fetchClients({ nome: searchTerm })
   }
 
   const handleLoadMore = () => {
     if (lastVisible) {
-      fetchClients(searchTerm, lastVisible)
+      fetchClients({}, lastVisible)
     }
   }
 
@@ -115,7 +150,7 @@ export function ClientsContent() {
     setSelectedClient(null)
   }
 
-  const handleDeleteClient = (clientId: string) => {
+  const handleDeleteClient = async (clientId: string) => {
     setClientToDelete(clientId)
   }
 
@@ -138,15 +173,32 @@ export function ClientsContent() {
     }
   }
 
+  const handleAdvancedSearch = (searchParams: any) => {
+    setClients([])
+    setLastVisible(null)
+    fetchClients(searchParams)
+  }
+
   if (error) return <div className="p-4 text-red-500">{error}</div>
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Gestão de Clientes</h1>
-        <Button onClick={handleAddClient}>
-          <Plus className="mr-2 h-4 w-4" /> Adicionar Cliente
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={handleAddClient}>
+            <Plus className="mr-2 h-4 w-4" /> Adicionar Cliente
+          </Button>
+          <Button onClick={() => console.log("Bulk edit")}>
+            <Users className="mr-2 h-4 w-4" /> Edição em Massa
+          </Button>
+          <Button onClick={() => console.log("Create account")}>
+            <UserPlus className="mr-2 h-4 w-4" /> Criar Conta
+          </Button>
+          <Button onClick={() => setShowAdvancedSearch(true)}>
+            <FileSearch className="mr-2 h-4 w-4" /> Busca Avançada
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center space-x-2 mb-4">
@@ -287,7 +339,23 @@ export function ClientsContent() {
               onClick={async () => {
                 if (clientToDelete) {
                   try {
-                    await deleteDoc(doc(db, "clients", clientToDelete))
+                    const clientToDeleteRef = doc(db, "clients", clientToDelete)
+                    const clientDoc = await getDocs(query(collection(db, "clients"), where("id", "==", clientToDelete)))
+                    const clientName = clientDoc.docs[0].data().nome
+
+                    await deleteDoc(clientToDeleteRef)
+
+                    // Adicionar atividade recente para exclusão de cliente
+                    const user = auth.currentUser
+                    if (user) {
+                      await addDoc(collection(db, "recentActivity"), {
+                        agencyId: user.uid,
+                        description: "Cliente excluído",
+                        details: clientName, // Adicione o nome do cliente aqui
+                        timestamp: serverTimestamp(),
+                      })
+                    }
+
                     fetchClients()
                     setSelectedClient(null)
                     setClientToDelete(null)
@@ -303,6 +371,11 @@ export function ClientsContent() {
           </div>
         </div>
       </Modal>
+      <AdvancedSearchModal
+        isOpen={showAdvancedSearch}
+        onClose={() => setShowAdvancedSearch(false)}
+        onSearch={handleAdvancedSearch}
+      />
     </div>
   )
 }

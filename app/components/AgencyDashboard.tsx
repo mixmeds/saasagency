@@ -13,6 +13,7 @@ import {
   Bell,
   MessageSquare,
   LogOut,
+  UserPlus,
 } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { auth, db } from "@/app/lib/firebase"
@@ -24,6 +25,7 @@ import { CampaignsContent } from "./agency/CampaignsContent"
 import { AnalyticsContent } from "./agency/AnalyticsContent"
 import { SettingsContent } from "./agency/SettingsContent"
 import { DashboardContent } from "./agency/DashboardContent"
+import { CollaboratorsContent } from "./agency/CollaboratorsContent"
 
 interface AgencyData {
   name: string
@@ -134,6 +136,7 @@ export function AgencyDashboard() {
     { id: "clients", icon: Users, label: "Clientes" },
     { id: "campaigns", icon: FileText, label: "Campanhas" },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
+    { id: "collaborators", icon: UserPlus, label: "Colaboradores" },
     { id: "settings", icon: Settings, label: "Configurações" },
   ]
 
@@ -219,6 +222,7 @@ export function AgencyDashboard() {
           {activeTab === "clients" && <ClientsContent />}
           {activeTab === "campaigns" && <CampaignsContent />}
           {activeTab === "analytics" && <AnalyticsContent />}
+          {activeTab === "collaborators" && <CollaboratorsContent />}
           {activeTab === "settings" && <SettingsContent />}
         </main>
       </div>

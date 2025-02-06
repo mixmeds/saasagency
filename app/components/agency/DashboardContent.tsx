@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, BarChart, DollarSign, FileText } from "lucide-react"
+import { Users, BarChart, DollarSign, FileText, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
   collection,
   getDocs,
@@ -12,7 +13,10 @@ import {
   orderBy,
   setDoc,
   doc,
+  getDoc,
   updateDoc,
+  deleteDoc,
+  serverTimestamp,
   type Timestamp,
 } from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
@@ -28,6 +32,7 @@ interface RecentActivity {
   id: string
   description: string
   timestamp: Timestamp
+  details?: string
 }
 
 export function DashboardContent() {
@@ -41,50 +46,44 @@ export function DashboardContent() {
   })
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true)
-      setError(null)
+  const fetchDashboardData = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const user = auth.currentUser
+      if (!user) throw new Error("No authenticated user")
+
+      // Fetch or create summary data
+      const summaryDocRef = doc(db, "agencySummary", user.uid)
+      let summaryDoc = await getDoc(summaryDocRef)
+
+      if (!summaryDoc.exists()) {
+        const initialSummary: DashboardSummary = {
+          totalClients: 0,
+          activeCampaigns: 0,
+          totalRevenue: 0,
+          averageROI: 0,
+        }
+        await setDoc(summaryDocRef, initialSummary)
+        summaryDoc = await getDoc(summaryDocRef)
+      }
+
+      const summaryData = summaryDoc.data() as DashboardSummary
+      setSummary(summaryData)
+
+      // Fetch total number of clients
+      const clientsSnapshot = await getDocs(query(collection(db, "clients"), where("agencyId", "==", user.uid)))
+      const totalClients = clientsSnapshot.size
+
+      // Update the summary with the correct number of clients
+      if (totalClients !== summaryData.totalClients) {
+        const updatedSummary = { ...summaryData, totalClients }
+        await updateDoc(summaryDocRef, { totalClients })
+        setSummary(updatedSummary)
+      }
+
+      // Fetch recent activity
       try {
-        const user = auth.currentUser
-        if (!user) throw new Error("No authenticated user")
-
-        // Fetch summary data
-        const summaryDoc = await getDocs(
-          query(collection(db, "agencySummary"), where("agencyId", "==", user.uid), limit(1)),
-        )
-        if (!summaryDoc.empty) {
-          const summaryData = summaryDoc.docs[0].data() as DashboardSummary
-          setSummary(summaryData)
-        } else {
-          // If no summary exists, create one with initial values
-          const initialSummary: DashboardSummary = {
-            totalClients: 0,
-            activeCampaigns: 0,
-            totalRevenue: 0,
-            averageROI: 0
-          }
-          await setDoc(doc(db, "agencySummary", user.uid), {
-            ...initialSummary,
-            agencyId: user.uid
-          })
-          setSummary(initialSummary)
-        }
-
-        // Fetch total number of clients
-        const clientsSnapshot = await getDocs(
-          query(collection(db, "clients"), where("agencyId", "==", user.uid))
-        )
-        const totalClients = clientsSnapshot.size
-
-        // Update the summary with the correct number of clients
-        if (totalClients !== summary.totalClients) {
-          const updatedSummary = { ...summary, totalClients }
-          await updateDoc(doc(db, "agencySummary", user.uid), { totalClients })
-          setSummary(updatedSummary)
-        }
-
-        // Fetch recent activity
         const recentActivityQuery = query(
           collection(db, "recentActivity"),
           where("agencyId", "==", user.uid),
@@ -92,22 +91,94 @@ export function DashboardContent() {
           limit(5),
         )
         const recentActivitySnapshot = await getDocs(recentActivityQuery)
-        const recentActivityData = recentActivitySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as RecentActivity[]
+
+        const recentActivityData = recentActivitySnapshot.docs.map((doc) => {
+          const data = doc.data() as RecentActivity
+          return {
+            id: doc.id,
+            ...data,
+            description: formatActivityDescription(data.description, data.details),
+          }
+        })
+
         setRecentActivity(recentActivityData)
-
       } catch (err: any) {
-        console.error("Error fetching dashboard data:", err)
-        setError("Falha ao carregar dados do dashboard. Por favor, tente novamente.")
-      } finally {
-        setIsLoading(false)
+        if (err.code === "failed-precondition") {
+          console.error("Index not created for recent activity query:", err)
+          setError(
+            "É necessário criar um índice para as atividades recentes. Por favor, siga as instruções no console do Firebase.",
+          )
+        } else {
+          throw err
+        }
       }
-    }
 
+      // Clean up old activities
+      try {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        const oldActivitiesQuery = query(
+          collection(db, "recentActivity"),
+          where("agencyId", "==", user.uid),
+          where("timestamp", "<", twentyFourHoursAgo),
+        )
+        const oldActivitiesSnapshot = await getDocs(oldActivitiesQuery)
+        oldActivitiesSnapshot.docs.forEach((doc) => {
+          deleteDoc(doc.ref)
+        })
+      } catch (err: any) {
+        if (err.code === "failed-precondition") {
+          console.error("Index not created for old activities cleanup query:", err)
+          // We don't set an error here as it's not critical for the user experience
+        } else {
+          throw err
+        }
+      }
+    } catch (err: any) {
+      console.error("Error fetching dashboard data:", err)
+      setError("Falha ao carregar dados do dashboard. Por favor, tente novamente.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
     fetchDashboardData()
-  }, [summary]) // Added summary to the dependency array
+  }, [auth.currentUser]) // Added auth.currentUser as a dependency
+
+  const formatActivityDescription = (description: string, details?: string) => {
+    if (description.startsWith("Cliente excluído:") && details) {
+      return `Cliente excluído: ${details}`
+    }
+    return description
+  }
+
+  const handleClearActivities = async () => {
+    try {
+      const user = auth.currentUser
+      if (!user) throw new Error("No authenticated user")
+
+      const activitiesQuery = query(collection(db, "recentActivity"), where("agencyId", "==", user.uid))
+      const activitiesSnapshot = await getDocs(activitiesQuery)
+
+      const deletePromises = activitiesSnapshot.docs.map((doc) => deleteDoc(doc.ref))
+      await Promise.all(deletePromises)
+
+      // Add a new activity to show that activities were cleared
+      await setDoc(doc(collection(db, "recentActivity")), {
+        agencyId: user.uid,
+        description: "Todas as atividades recentes foram limpas",
+        timestamp: serverTimestamp(),
+      })
+
+      fetchDashboardData()
+    } catch (err) {
+      console.error("Error clearing activities:", err)
+      setError("Falha ao limpar atividades. Por favor, tente novamente.")
+    }
+  }
+
+  if (isLoading) return <div>Carregando dados do dashboard...</div>
+  if (error) return <div>Erro: {error}</div>
 
   return (
     <div className="p-6">
@@ -155,7 +226,13 @@ export function DashboardContent() {
 
       {/* Recent Activity */}
       <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-semibold mb-4">Atividade Recente</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Atividade Recente</h2>
+          <Button variant="outline" size="sm" onClick={handleClearActivities} className="flex items-center">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Limpar Atividades
+          </Button>
+        </div>
         <div className="space-y-4">
           {recentActivity.length > 0 ? (
             recentActivity.map((activity) => (

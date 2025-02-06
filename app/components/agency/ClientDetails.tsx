@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"
+import { doc, updateDoc } from "firebase/firestore"
 import { db } from "@/app/lib/firebase"
 import { Trash2, Loader2 } from "lucide-react"
 import { SkeletonText } from "../SkeletonLoading"
@@ -60,48 +60,20 @@ export function ClientDetails({ client, onUpdate, onDelete, onClose }: ClientDet
     }
   }
 
-  const handleAddNote = async () => {
+  const handleAddNote = () => {
     if (!newNote.trim()) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const clientRef = doc(db, "clients", client.id)
-      await updateDoc(clientRef, {
-        anotacoes: arrayUnion(newNote),
-      })
-      setEditedClient((prev) => ({ ...prev, anotacoes: [...prev.anotacoes, newNote] }))
-      setNewNote("")
-      onUpdate()
-    } catch (err) {
-      console.error("Erro ao adicionar anotação:", err)
-      setError("Falha ao adicionar anotação. Por favor, tente novamente.")
-    } finally {
-      setIsLoading(false)
-    }
+    setEditedClient((prev) => ({
+      ...prev,
+      anotacoes: [...prev.anotacoes, newNote],
+    }))
+    setNewNote("")
   }
 
-  const handleDeleteNote = async (noteToDelete: string) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const clientRef = doc(db, "clients", client.id)
-      await updateDoc(clientRef, {
-        anotacoes: arrayRemove(noteToDelete),
-      })
-      setEditedClient((prev) => ({
-        ...prev,
-        anotacoes: prev.anotacoes.filter((note) => note !== noteToDelete),
-      }))
-      onUpdate()
-    } catch (err) {
-      console.error("Erro ao excluir anotação:", err)
-      setError("Falha ao excluir anotação. Por favor, tente novamente.")
-    } finally {
-      setIsLoading(false)
-    }
+  const handleDeleteNote = (noteToDelete: string) => {
+    setEditedClient((prev) => ({
+      ...prev,
+      anotacoes: prev.anotacoes.filter((note) => note !== noteToDelete),
+    }))
   }
 
   return (
