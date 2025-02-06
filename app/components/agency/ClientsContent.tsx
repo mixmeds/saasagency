@@ -14,6 +14,7 @@ import {
   getDocs,
   deleteDoc,
   doc,
+  getDoc,
   addDoc,
   serverTimestamp,
 } from "firebase/firestore"
@@ -26,6 +27,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import React from "react"
 import { SkeletonText } from "../SkeletonLoading"
 import { AdvancedSearchModal } from "../AdvancedSearchModal"
+import { useRouter } from "next/navigation"
+import { onAuthStateChanged } from "firebase/auth"
 
 interface Client {
   id: string
@@ -42,6 +45,7 @@ interface Client {
 }
 
 export function ClientsContent() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -52,6 +56,7 @@ export function ClientsContent() {
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
   const [clientToDelete, setClientToDelete] = useState<string | null>(null)
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   const fetchClients = useCallback(async (searchParams: any = {}, startAfterDoc = null) => {
     setIsLoading(true)
@@ -120,6 +125,20 @@ export function ClientsContent() {
     fetchClients()
   }, [fetchClients])
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true)
+      } else {
+        setIsAuthenticated(false)
+        // Redirecionar para a página de login se não estiver autenticado
+        router.push("/")
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
   const handleSearch = () => {
     setClients([])
     setLastVisible(null)
@@ -151,6 +170,10 @@ export function ClientsContent() {
   }
 
   const handleDeleteClient = async (clientId: string) => {
+    if (!isAuthenticated) {
+      setError("Você precisa estar autenticado para realizar esta ação.")
+      return
+    }
     setClientToDelete(clientId)
   }
 
@@ -337,32 +360,42 @@ export function ClientsContent() {
             <Button
               variant="destructive"
               onClick={async () => {
-                if (clientToDelete) {
+                if (clientToDelete && isAuthenticated) {
                   try {
-                    const clientToDeleteRef = doc(db, "clients", clientToDelete)
-                    const clientDoc = await getDocs(query(collection(db, "clients"), where("id", "==", clientToDelete)))
-                    const clientName = clientDoc.docs[0].data().nome
+                    const user = auth.currentUser
+                    if (!user) throw new Error("Usuário não autenticado")
 
-                    await deleteDoc(clientToDeleteRef)
+                    const clientRef = doc(db, "clients", clientToDelete)
+                    const clientDoc = await getDoc(clientRef)
+
+                    if (!clientDoc.exists()) {
+                      throw new Error("Cliente não encontrado")
+                    }
+
+                    const clientData = clientDoc.data()
+                    if (clientData.agencyId !== user.uid) {
+                      throw new Error("Você não tem permissão para excluir este cliente")
+                    }
+
+                    await deleteDoc(clientRef)
 
                     // Adicionar atividade recente para exclusão de cliente
-                    const user = auth.currentUser
-                    if (user) {
-                      await addDoc(collection(db, "recentActivity"), {
-                        agencyId: user.uid,
-                        description: "Cliente excluído",
-                        details: clientName, // Adicione o nome do cliente aqui
-                        timestamp: serverTimestamp(),
-                      })
-                    }
+                    await addDoc(collection(db, "recentActivity"), {
+                      agencyId: user.uid,
+                      description: "Cliente excluído",
+                      details: clientData.nome,
+                      timestamp: serverTimestamp(),
+                    })
 
                     fetchClients()
                     setSelectedClient(null)
                     setClientToDelete(null)
-                  } catch (err) {
+                  } catch (err: any) {
                     console.error("Erro ao excluir cliente:", err)
-                    setError("Falha ao excluir cliente. Por favor, tente novamente.")
+                    setError(`Falha ao excluir cliente: ${err.message}`)
                   }
+                } else {
+                  setError("Você precisa estar autenticado para realizar esta ação.")
                 }
               }}
             >
