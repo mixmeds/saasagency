@@ -14,6 +14,7 @@ import {
   MessageSquare,
   LogOut,
   UserPlus,
+  Briefcase,
 } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { auth, db } from "@/app/lib/firebase"
@@ -26,6 +27,7 @@ import { AnalyticsContent } from "./agency/AnalyticsContent"
 import { SettingsContent } from "./agency/SettingsContent"
 import { DashboardContent } from "./agency/DashboardContent"
 import { CollaboratorsContent } from "./agency/CollaboratorsContent"
+import { ProjectsContent } from "./agency/ProjectsContent"
 
 interface AgencyData {
   name: string
@@ -45,7 +47,7 @@ export function AgencyDashboard() {
 
   useEffect(() => {
     // Removed: console.log("Active Tab:", activeTab)
-  }, [activeTab])
+  }, [])
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -134,6 +136,7 @@ export function AgencyDashboard() {
   const menuItems = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { id: "clients", icon: Users, label: "Clientes" },
+    { id: "projects", icon: Briefcase, label: "Projetos" },
     { id: "campaigns", icon: FileText, label: "Campanhas" },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
     { id: "collaborators", icon: UserPlus, label: "Colaboradores" },
@@ -220,6 +223,7 @@ export function AgencyDashboard() {
           )}
           {activeTab === "dashboard" && <DashboardContent />}
           {activeTab === "clients" && <ClientsContent />}
+          {activeTab === "projects" && <ProjectsContent />}
           {activeTab === "campaigns" && <CampaignsContent />}
           {activeTab === "analytics" && <AnalyticsContent />}
           {activeTab === "collaborators" && <CollaboratorsContent />}

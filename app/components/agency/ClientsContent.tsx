@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Edit, ChevronDown, ChevronUp, MessageCircle, Users, UserPlus, FileSearch } from "lucide-react"
+import { Plus, Search, Edit, ChevronDown, ChevronUp, Users, FileSearch, FileUp } from "lucide-react"
 import {
   collection,
   query,
@@ -24,11 +24,14 @@ import { Modal } from "../Modal"
 import { ClientDetails } from "./ClientDetails"
 import { ClientStatusChart } from "./ClientStatusChart"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import React from "react"
 import { SkeletonText } from "../SkeletonLoading"
 import { AdvancedSearchModal } from "../AdvancedSearchModal"
 import { useRouter } from "next/navigation"
 import { onAuthStateChanged } from "firebase/auth"
+import { Checkbox } from "@/components/ui/checkbox"
+import { BulkEditCard } from "./BulkEditCard"
+import { BulkEditForm } from "./BulkEditForm"
+import { ExportCSVButton } from "./ExportCSVButton"
 
 interface Client {
   id: string
@@ -57,6 +60,9 @@ export function ClientsContent() {
   const [clientToDelete, setClientToDelete] = useState<string | null>(null)
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isBulkEditMode, setIsBulkEditMode] = useState(false)
+  const [selectedClients, setSelectedClients] = useState<string[]>([])
+  const [showBulkEditForm, setShowBulkEditForm] = useState(false)
 
   const fetchClients = useCallback(async (searchParams: any = {}, startAfterDoc = null) => {
     setIsLoading(true)
@@ -202,58 +208,86 @@ export function ClientsContent() {
     fetchClients(searchParams)
   }
 
+  const toggleClientSelection = (clientId: string) => {
+    setSelectedClients((prev) => (prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]))
+  }
+
+  const handleClientSelection = (clientId: string, event: React.MouseEvent<HTMLInputElement>) => {
+    if (event.shiftKey && selectedClients.length > 0) {
+      const clientIds = clients.map((client) => client.id)
+      const lastSelectedIndex = clientIds.indexOf(selectedClients[selectedClients.length - 1])
+      const currentIndex = clientIds.indexOf(clientId)
+      const start = Math.min(lastSelectedIndex, currentIndex)
+      const end = Math.max(lastSelectedIndex, currentIndex)
+      const newSelectedClients = clientIds.slice(start, end + 1)
+      setSelectedClients((prev) => Array.from(new Set([...prev, ...newSelectedClients])))
+    } else {
+      toggleClientSelection(clientId)
+    }
+  }
+
   if (error) return <div className="p-4 text-red-500">{error}</div>
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Gestão de Clientes</h1>
-        <div className="flex space-x-2">
+      <div className="flex flex-col space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Gestão de Clientes</h1>
+        </div>
+
+        <div className="flex items-center space-x-2 mb-4">
+          <Input
+            type="text"
+            placeholder="Buscar clientes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-grow"
+          />
+          <Button variant="outline" onClick={handleSearch}>
+            <Search className="h-4 w-4 mr-2" /> Buscar
+          </Button>
           <Button onClick={handleAddClient}>
             <Plus className="mr-2 h-4 w-4" /> Adicionar Cliente
           </Button>
-          <Button onClick={() => console.log("Bulk edit")}>
+          <Button onClick={() => setIsBulkEditMode(true)}>
             <Users className="mr-2 h-4 w-4" /> Edição em Massa
           </Button>
-          <Button onClick={() => console.log("Create account")}>
-            <UserPlus className="mr-2 h-4 w-4" /> Criar Conta
+          <ExportCSVButton clients={clients} />
+          <Button onClick={() => console.log("Importar CSV")}>
+            <FileUp className="mr-2 h-4 w-4" /> Importar CSV
           </Button>
           <Button onClick={() => setShowAdvancedSearch(true)}>
             <FileSearch className="mr-2 h-4 w-4" /> Busca Avançada
           </Button>
         </div>
-      </div>
 
-      <div className="flex items-center space-x-2 mb-4">
-        <Input
-          type="text"
-          placeholder="Buscar clientes..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
-        <Button variant="outline" onClick={handleSearch}>
-          <Search className="h-4 w-4 mr-2" /> Buscar
-        </Button>
-      </div>
+        <ClientStatusChart clients={clients} />
 
-      <ClientStatusChart clients={clients} />
-
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-gray-100">
-            <TableHead className="font-bold">Nome</TableHead>
-            <TableHead className="font-bold">Email</TableHead>
-            <TableHead className="font-bold">Telefone</TableHead>
-            <TableHead className="font-bold">Empresa</TableHead>
-            <TableHead className="font-bold">Status</TableHead>
-            <TableHead className="font-bold">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {clients.map((client) => (
-            <React.Fragment key={client.id}>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-100">
+              {isBulkEditMode && <TableHead className="w-[50px]">Selecionar</TableHead>}
+              <TableHead className="font-bold">Nome</TableHead>
+              <TableHead className="font-bold">Email</TableHead>
+              <TableHead className="font-bold">Telefone</TableHead>
+              <TableHead className="font-bold">Empresa</TableHead>
+              <TableHead className="font-bold">Status</TableHead>
+              <TableHead className="font-bold">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {clients.map((client) => (
               <TableRow key={client.id} className="hover:bg-gray-50">
+                {isBulkEditMode && (
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedClients.includes(client.id)}
+                      onCheckedChange={(checked) =>
+                        handleClientSelection(client.id, checked as unknown as React.MouseEvent<HTMLInputElement>)
+                      }
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="font-medium">{client.nome}</TableCell>
                 <TableCell>{client.email}</TableCell>
                 <TableCell>{client.telefone}</TableCell>
@@ -279,61 +313,61 @@ export function ClientsContent() {
                         </>
                       )}
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeleteClient(client.id)}>
+                      <Edit className="h-4 w-4 mr-2" /> Excluir
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
-              {expandedClientId === client.id && (
+            ))}
+          </TableBody>
+        </Table>
+
+        {expandedClientId &&
+          clients.map(
+            (client) =>
+              expandedClientId === client.id && (
                 <TableRow>
-                  <TableCell colSpan={6}>
-                    <div className="p-4 bg-gray-50 rounded-lg shadow-inner">
-                      <h4 className="font-semibold mb-2">Informações Adicionais</h4>
-                      <p className="mb-2">
+                  <TableCell colSpan={isBulkEditMode ? 7 : 6}>
+                    <div className="p-4 bg-gray-50">
+                      <h4 className="font-semibold mb-2">Detalhes adicionais:</h4>
+                      <p>
                         <strong>Endereço:</strong> {client.endereco}
                       </p>
-                      <div className="mb-2">
-                        <strong>Anotações:</strong>
-                        <ul className="list-disc list-inside pl-4">
-                          {client.anotacoes.map((anotacao, index) => (
-                            <li key={`${client.id}-anotacao-${index}`}>{anotacao}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => window.open(`https://wa.me/${client.telefone.replace(/\D/g, "")}`, "_blank")}
-                        className="bg-green-500 hover:bg-green-600 text-white"
-                      >
-                        <MessageCircle className="h-4 w-4 mr-2" /> Abrir WhatsApp
-                      </Button>
+                      <p>
+                        <strong>Documento:</strong> {client.documento}
+                      </p>
+                      <h4 className="font-semibold mt-4 mb-2">Anotações:</h4>
+                      <ul className="list-disc pl-5">
+                        {client.anotacoes.map((anotacao, index) => (
+                          <li key={index}>{anotacao}</li>
+                        ))}
+                      </ul>
                     </div>
                   </TableCell>
                 </TableRow>
-              )}
-            </React.Fragment>
-          ))}
-        </TableBody>
-      </Table>
+              ),
+          )}
 
-      {isLoading && (
-        <div className="space-y-4 mt-4">
-          {[...Array(5)].map((_, index) => (
-            <div key={index} className="flex items-center space-x-4">
-              <SkeletonText className="h-6 w-1/4" />
-              <SkeletonText className="h-6 w-1/4" />
-              <SkeletonText className="h-6 w-1/4" />
-              <SkeletonText className="h-6 w-1/4" />
-            </div>
-          ))}
-        </div>
-      )}
+        {isLoading && (
+          <div className="space-y-4 mt-4">
+            {[...Array(5)].map((_, index) => (
+              <div key={index} className="flex items-center space-x-4">
+                <SkeletonText className="h-6 w-1/4" />
+                <SkeletonText className="h-6 w-1/4" />
+                <SkeletonText className="h-6 w-1/4" />
+                <SkeletonText className="h-6 w-1/4" />
+              </div>
+            ))}
+          </div>
+        )}
 
-      {!isLoading && lastVisible && (
-        <div className="text-center mt-4">
-          <Button onClick={handleLoadMore}>Carregar mais</Button>
-        </div>
-      )}
-
+        {!isLoading && lastVisible && (
+          <div className="text-center mt-4">
+            <Button onClick={handleLoadMore}>Carregar mais</Button>
+          </div>
+        )}
+      </div>
       <Modal isOpen={showAddForm} onClose={() => setShowAddForm(false)}>
         <AddClientForm onClientAdded={handleClientAdded} onCancel={() => setShowAddForm(false)} />
       </Modal>
@@ -409,6 +443,34 @@ export function ClientsContent() {
         onClose={() => setShowAdvancedSearch(false)}
         onSearch={handleAdvancedSearch}
       />
+      {isBulkEditMode && (
+        <BulkEditCard
+          selectedClients={selectedClients}
+          onCancel={() => {
+            setIsBulkEditMode(false)
+            setSelectedClients([])
+          }}
+          onEdit={() => {
+            setShowBulkEditForm(true)
+          }}
+        />
+      )}
+      <Modal isOpen={showBulkEditForm} onClose={() => setShowBulkEditForm(false)} size="lg">
+        <BulkEditForm
+          selectedClients={selectedClients}
+          onClose={() => {
+            setShowBulkEditForm(false)
+            setIsBulkEditMode(false)
+            setSelectedClients([])
+          }}
+          onClientsUpdated={() => {
+            fetchClients()
+            setShowBulkEditForm(false)
+            setIsBulkEditMode(false)
+            setSelectedClients([])
+          }}
+        />
+      </Modal>
     </div>
   )
 }

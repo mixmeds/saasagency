@@ -6,8 +6,8 @@ import { loginUser } from "../lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SkeletonText } from "./SkeletonLoading"
 import { Loader2 } from "lucide-react"
+import type React from "react"
 
 interface LoginFormProps {
   onSwitchToRegister: () => void
@@ -37,16 +37,6 @@ export default function LoginForm({ onSwitchToRegister, setIsLoading }: LoginFor
     }
   }
 
-  if (isSubmitting) {
-    return (
-      <div className="space-y-4">
-        <SkeletonText className="h-10 w-full" />
-        <SkeletonText className="h-10 w-full" />
-        <SkeletonText className="h-10 w-full" />
-      </div>
-    )
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-500 text-sm">{error}</div>}
@@ -73,7 +63,14 @@ export default function LoginForm({ onSwitchToRegister, setIsLoading }: LoginFor
         />
       </div>
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Entrando...
+          </>
+        ) : (
+          "Entrar"
+        )}
       </Button>
       <p className="text-center text-sm">
         Ainda não tem uma conta?{" "}
