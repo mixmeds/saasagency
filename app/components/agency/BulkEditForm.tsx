@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { updateDoc, doc, deleteDoc, addDoc, collection, serverTimestamp } from "firebase/firestore"
+import { Textarea } from "@/components/ui/textarea"
+import { updateDoc, doc, deleteDoc, addDoc, collection, serverTimestamp, arrayUnion } from "firebase/firestore"
 import { db } from "@/app/lib/firebase"
 import { auth } from "@/app/lib/firebase"
 
@@ -21,14 +22,17 @@ export function BulkEditForm({ selectedClients, onClose, onClientsUpdated }: Bul
     status: "",
     empresa: "",
     endereco: "",
+    anotacoes: [] as string[],
   })
   const [fieldsToUpdate, setFieldsToUpdate] = useState({
     status: false,
     empresa: false,
     endereco: false,
+    anotacoes: false,
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [newNote, setNewNote] = useState("")
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -37,6 +41,16 @@ export function BulkEditForm({ selectedClients, onClose, onClientsUpdated }: Bul
 
   const handleStatusChange = (value: string) => {
     setFormData((prev) => ({ ...prev, status: value }))
+  }
+
+  const handleAddNote = () => {
+    if (newNote.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        anotacoes: [...(prev.anotacoes || []), newNote.trim()],
+      }))
+      setNewNote("")
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +71,9 @@ export function BulkEditForm({ selectedClients, onClose, onClientsUpdated }: Bul
         }
         if (fieldsToUpdate.endereco && formData.endereco) {
           updateData.endereco = formData.endereco
+        }
+        if (fieldsToUpdate.anotacoes && formData.anotacoes && formData.anotacoes.length > 0) {
+          updateData.anotacoes = arrayUnion(...formData.anotacoes)
         }
 
         return updateDoc(clientRef, updateData)
@@ -172,6 +189,35 @@ export function BulkEditForm({ selectedClients, onClose, onClientsUpdated }: Bul
             placeholder="Novo endereço"
           />
         )}
+
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="updateAnotacoes"
+              checked={fieldsToUpdate.anotacoes}
+              onCheckedChange={(checked) => setFieldsToUpdate((prev) => ({ ...prev, anotacoes: checked as boolean }))}
+            />
+            <Label htmlFor="updateAnotacoes">Adicionar Anotação</Label>
+          </div>
+          {fieldsToUpdate.anotacoes && (
+            <div className="space-y-2">
+              <Textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Nova anotação" />
+              <Button type="button" onClick={handleAddNote} disabled={!newNote.trim()}>
+                Adicionar Anotação
+              </Button>
+              {formData.anotacoes && formData.anotacoes.length > 0 && (
+                <div className="mt-2">
+                  <h4 className="font-semibold mb-2">Anotações a serem adicionadas:</h4>
+                  <ul className="list-disc pl-5">
+                    {formData.anotacoes.map((anotacao, index) => (
+                      <li key={index}>{anotacao}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-red-500">{error}</p>}

@@ -24,7 +24,7 @@
     "@radix-ui/react-menubar": "^1.1.4",
     "@radix-ui/react-navigation-menu": "^1.2.3",
     "@radix-ui/react-popover": "^1.1.4",
-    "@radix-ui/react-progress": "^1.1.1",
+    "@radix-ui/react-progress": "latest",
     "@radix-ui/react-radio-group": "^1.2.2",
     "@radix-ui/react-scroll-area": "^1.2.2",
     "@radix-ui/react-select": "^2.1.4",
@@ -63,11 +63,13 @@
     "nodemailer": "latest",
     "chart.js": "latest",
     "@types/react": "latest",
+    "@types/react-dom": "latest",
     "framer-motion": "latest",
     "react-icons": "latest",
     "firebase": "latest",
     "next-auth": "latest",
-    "react-chartjs-2": "latest"
+    "react-chartjs-2": "latest",
+    "react-dropzone": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

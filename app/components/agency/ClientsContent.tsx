@@ -3,7 +3,18 @@
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Edit, ChevronDown, ChevronUp, Users, FileSearch, FileUp } from "lucide-react"
+import {
+  Plus,
+  Search,
+  Edit,
+  ChevronDown,
+  ChevronUp,
+  Users,
+  FileSearch,
+  FileUp,
+  Trash2,
+  MessageCircle,
+} from "lucide-react"
 import {
   collection,
   query,
@@ -32,6 +43,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { BulkEditCard } from "./BulkEditCard"
 import { BulkEditForm } from "./BulkEditForm"
 import { ExportCSVButton } from "./ExportCSVButton"
+import { ImportCSVModal } from "./ImportCSVModal"
 
 interface Client {
   id: string
@@ -63,6 +75,8 @@ export function ClientsContent() {
   const [isBulkEditMode, setIsBulkEditMode] = useState(false)
   const [selectedClients, setSelectedClients] = useState<string[]>([])
   const [showBulkEditForm, setShowBulkEditForm] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
 
   const fetchClients = useCallback(async (searchParams: any = {}, startAfterDoc = null) => {
     setIsLoading(true)
@@ -213,16 +227,65 @@ export function ClientsContent() {
   }
 
   const handleClientSelection = (clientId: string, event: React.MouseEvent<HTMLInputElement>) => {
-    if (event.shiftKey && selectedClients.length > 0) {
+    if (event.shiftKey && lastSelectedId) {
       const clientIds = clients.map((client) => client.id)
-      const lastSelectedIndex = clientIds.indexOf(selectedClients[selectedClients.length - 1])
       const currentIndex = clientIds.indexOf(clientId)
-      const start = Math.min(lastSelectedIndex, currentIndex)
-      const end = Math.max(lastSelectedIndex, currentIndex)
-      const newSelectedClients = clientIds.slice(start, end + 1)
-      setSelectedClients((prev) => Array.from(new Set([...prev, ...newSelectedClients])))
+      const lastIndex = clientIds.indexOf(lastSelectedId)
+
+      if (currentIndex !== -1 && lastIndex !== -1) {
+        const start = Math.min(currentIndex, lastIndex)
+        const end = Math.max(currentIndex, lastIndex)
+        const selectedRange = clientIds.slice(start, end + 1)
+
+        setSelectedClients((prev) => {
+          const newSelection = new Set(prev)
+          selectedRange.forEach((id) => newSelection.add(id))
+          return Array.from(newSelection)
+        })
+      }
     } else {
       toggleClientSelection(clientId)
+    }
+    setLastSelectedId(clientId)
+  }
+
+  const handleImportCSV = async (data: any[]) => {
+    try {
+      const user = auth.currentUser
+      if (!user) throw new Error("Usuário não autenticado")
+
+      // Process each record in the batch
+      const importPromises = data.map(async (row) => {
+        const clientData = {
+          nome: row.nome || row.name || "",
+          email: row.email || "",
+          telefone: row.telefone || row.phone || "",
+          empresa: row.empresa || row.company || "",
+          endereco: row.endereco || row.address || "",
+          status: "Potencial" as const,
+          agencyId: user.uid,
+          dataCriacao: serverTimestamp(),
+          anotacoes: [],
+          documento: row.documento || row.document || "",
+        }
+
+        return addDoc(collection(db, "clients"), clientData)
+      })
+
+      await Promise.all(importPromises)
+
+      // Add activity record for the batch
+      await addDoc(collection(db, "recentActivity"), {
+        agencyId: user.uid,
+        description: `Importados ${data.length} clientes via CSV`,
+        timestamp: serverTimestamp(),
+      })
+
+      // Refresh the client list after each batch
+      await fetchClients()
+    } catch (err: any) {
+      console.error("Erro ao importar clientes:", err)
+      throw new Error("Falha ao importar clientes. Verifique o formato do arquivo e tente novamente.")
     }
   }
 
@@ -253,7 +316,7 @@ export function ClientsContent() {
             <Users className="mr-2 h-4 w-4" /> Edição em Massa
           </Button>
           <ExportCSVButton clients={clients} />
-          <Button onClick={() => console.log("Importar CSV")}>
+          <Button onClick={() => setShowImportModal(true)}>
             <FileUp className="mr-2 h-4 w-4" /> Importar CSV
           </Button>
           <Button onClick={() => setShowAdvancedSearch(true)}>
@@ -277,77 +340,92 @@ export function ClientsContent() {
           </TableHeader>
           <TableBody>
             {clients.map((client) => (
-              <TableRow key={client.id} className="hover:bg-gray-50">
-                {isBulkEditMode && (
+              <React.Fragment key={client.id}>
+                <TableRow className="hover:bg-gray-50">
+                  {isBulkEditMode && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedClients.includes(client.id)}
+                        onCheckedChange={(checked) => {
+                          const syntheticEvent = {
+                            shiftKey: false,
+                            ...window.event,
+                          } as unknown as React.MouseEvent<HTMLInputElement>
+                          handleClientSelection(client.id, syntheticEvent)
+                        }}
+                      />
+                    </TableCell>
+                  )}
+                  <TableCell className="font-medium">{client.nome}</TableCell>
+                  <TableCell>{client.email}</TableCell>
+                  <TableCell>{client.telefone}</TableCell>
+                  <TableCell>{client.empresa}</TableCell>
                   <TableCell>
-                    <Checkbox
-                      checked={selectedClients.includes(client.id)}
-                      onCheckedChange={(checked) =>
-                        handleClientSelection(client.id, checked as unknown as React.MouseEvent<HTMLInputElement>)
-                      }
-                    />
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(client.status)}`}>
+                      {client.status}
+                    </span>
                   </TableCell>
-                )}
-                <TableCell className="font-medium">{client.nome}</TableCell>
-                <TableCell>{client.email}</TableCell>
-                <TableCell>{client.telefone}</TableCell>
-                <TableCell>{client.empresa}</TableCell>
-                <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(client.status)}`}>
-                    {client.status}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => handleClientSelect(client)}>
-                      <Edit className="h-4 w-4 mr-2" /> Editar
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => toggleExpand(client.id)}>
-                      {expandedClientId === client.id ? (
-                        <>
-                          <ChevronUp className="h-4 w-4 mr-2" /> Minimizar
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="h-4 w-4 mr-2" /> Expandir
-                        </>
-                      )}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDeleteClient(client.id)}>
-                      <Edit className="h-4 w-4 mr-2" /> Excluir
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-
-        {expandedClientId &&
-          clients.map(
-            (client) =>
-              expandedClientId === client.id && (
-                <TableRow>
-                  <TableCell colSpan={isBulkEditMode ? 7 : 6}>
-                    <div className="p-4 bg-gray-50">
-                      <h4 className="font-semibold mb-2">Detalhes adicionais:</h4>
-                      <p>
-                        <strong>Endereço:</strong> {client.endereco}
-                      </p>
-                      <p>
-                        <strong>Documento:</strong> {client.documento}
-                      </p>
-                      <h4 className="font-semibold mt-4 mb-2">Anotações:</h4>
-                      <ul className="list-disc pl-5">
-                        {client.anotacoes.map((anotacao, index) => (
-                          <li key={index}>{anotacao}</li>
-                        ))}
-                      </ul>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => handleClientSelect(client)}>
+                        <Edit className="h-4 w-4 mr-2" /> Editar
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => toggleExpand(client.id)}>
+                        {expandedClientId === client.id ? (
+                          <>
+                            <ChevronUp className="h-4 w-4 mr-2" /> Minimizar
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-2" /> Expandir
+                          </>
+                        )}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDeleteClient(client.id)}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              ),
-          )}
+                {expandedClientId === client.id && (
+                  <TableRow>
+                    <TableCell colSpan={isBulkEditMode ? 7 : 6}>
+                      <div className="p-4 bg-gray-50">
+                        <h4 className="font-semibold mb-2">Detalhes adicionais:</h4>
+                        <p>
+                          <strong>Endereço:</strong> {client.endereco}
+                        </p>
+                        <p>
+                          <strong>{client.documento?.length === 14 ? "CNPJ" : "CPF"}:</strong> {client.documento}
+                        </p>
+                        <div className="mt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const phoneNumber = client.telefone.replace(/\D/g, "")
+                              window.open(`https://wa.me/${phoneNumber}`, "_blank")
+                            }}
+                            className="flex items-center gap-2 text-green-600 hover:text-green-700"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Abrir WhatsApp
+                          </Button>
+                        </div>
+                        <h4 className="font-semibold mt-4 mb-2">Anotações:</h4>
+                        <ul className="list-disc pl-5">
+                          {client.anotacoes.map((anotacao, index) => (
+                            <li key={index}>{anotacao}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
 
         {isLoading && (
           <div className="space-y-4 mt-4">
@@ -471,6 +549,7 @@ export function ClientsContent() {
           }}
         />
       </Modal>
+      <ImportCSVModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} onImport={handleImportCSV} />
     </div>
   )
 }

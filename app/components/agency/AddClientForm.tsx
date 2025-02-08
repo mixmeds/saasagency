@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { addDoc, collection, serverTimestamp, getDoc, doc } from "firebase/firestore"
+import { addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { db, auth } from "@/app/lib/firebase"
 
 interface AddClientFormProps {
@@ -78,11 +78,6 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
       const user = auth.currentUser
       if (!user) throw new Error("Usuário não autenticado")
 
-      const userDoc = await getDoc(doc(db, "users", user.uid))
-      if (!userDoc.exists() || userDoc.data().userType !== "agency") {
-        throw new Error("Usuário não autorizado a adicionar clientes")
-      }
-
       const newClient = {
         ...formData,
         telefone: `${formData.telefonePrefix}${formData.telefone}`,
@@ -91,58 +86,49 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
         anotacoes: formData.anotacao ? [formData.anotacao] : [],
       }
 
-      const clientDocRef = await addDoc(collection(db, "clients"), newClient)
-
-      // Add recent activity
-      await addDoc(collection(db, "recentActivity"), {
-        agencyId: user.uid,
-        description: `Novo cliente adicionado: ${formData.nome}`,
-        timestamp: serverTimestamp(),
-      })
-
+      await addDoc(collection(db, "clients"), newClient)
       onClientAdded()
     } catch (err: any) {
       console.error("Erro ao adicionar novo cliente:", err)
-      if (err.code === "permission-denied") {
-        setError("Permissão negada. Verifique se você tem as permissões necessárias para adicionar clientes.")
-      } else {
-        setError(`Falha ao adicionar novo cliente: ${err.message}`)
-      }
+      setError(`Falha ao adicionar novo cliente: ${err.message}`)
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto p-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+    <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
           <Label htmlFor="nome">Nome do Cliente</Label>
           <Input id="nome" name="nome" value={formData.nome} onChange={handleChange} required />
         </div>
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} />
         </div>
-        <div className="flex space-x-2">
-          <div className="w-1/4">
-            <Label htmlFor="telefonePrefix">Prefixo</Label>
-            <Input id="telefonePrefix" name="telefonePrefix" value={formData.telefonePrefix} onChange={handleChange} />
-          </div>
-          <div className="flex-1">
-            <Label htmlFor="telefone">Telefone</Label>
-            <Input id="telefone" name="telefone" value={formData.telefone} onChange={handleChange} />
+        <div className="space-y-2">
+          <Label htmlFor="telefone">Telefone</Label>
+          <div className="flex space-x-2">
+            <Input
+              id="telefonePrefix"
+              name="telefonePrefix"
+              value={formData.telefonePrefix}
+              onChange={handleChange}
+              className="w-20"
+            />
+            <Input id="telefone" name="telefone" value={formData.telefone} onChange={handleChange} className="flex-1" />
           </div>
         </div>
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="empresa">Empresa</Label>
           <Input id="empresa" name="empresa" value={formData.empresa} onChange={handleChange} />
         </div>
-        <div className="md:col-span-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="endereco">Endereço</Label>
           <Input id="endereco" name="endereco" value={formData.endereco} onChange={handleChange} />
         </div>
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="documentType">Tipo de Documento</Label>
           <Select onValueChange={handleDocumentTypeChange} defaultValue={formData.documentType}>
             <SelectTrigger>
@@ -154,7 +140,7 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="document">{formData.documentType.toUpperCase()}</Label>
           <Input
             id="document"
@@ -166,19 +152,17 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
             required={!formData.documentDisabled}
           />
         </div>
-        <div className="md:col-span-2">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="documentDisabled"
-              checked={formData.documentDisabled}
-              onCheckedChange={(checked) =>
-                setFormData((prev) => ({ ...prev, documentDisabled: checked as boolean, document: "" }))
-              }
-            />
-            <Label htmlFor="documentDisabled">Não informar {formData.documentType.toUpperCase()}</Label>
-          </div>
+        <div className="md:col-span-2 flex items-center space-x-2">
+          <Checkbox
+            id="documentDisabled"
+            checked={formData.documentDisabled}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({ ...prev, documentDisabled: checked as boolean, document: "" }))
+            }
+          />
+          <Label htmlFor="documentDisabled">Não informar {formData.documentType.toUpperCase()}</Label>
         </div>
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
           <Select onValueChange={handleStatusChange} defaultValue={formData.status}>
             <SelectTrigger>
@@ -200,9 +184,9 @@ export function AddClientForm({ onClientAdded, onCancel }: AddClientFormProps) {
             </SelectContent>
           </Select>
         </div>
-        <div className="md:col-span-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="anotacao">Anotação Inicial</Label>
-          <Textarea id="anotacao" name="anotacao" value={formData.anotacao} onChange={handleChange} />
+          <Textarea id="anotacao" name="anotacao" value={formData.anotacao} onChange={handleChange} rows={4} />
         </div>
       </div>
       {error && <p className="text-red-500">{error}</p>}
