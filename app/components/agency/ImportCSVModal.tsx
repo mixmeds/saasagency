@@ -74,8 +74,8 @@ export function ImportCSVModal({ isOpen, onClose, onImport }: ImportCSVModalProp
         }
       }
     },
-    [onImport, onClose, processCSVInBatches],
-  ) // Added processCSVInBatches to dependencies
+    [processCSVInBatches],
+  )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
