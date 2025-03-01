@@ -1,0 +1,69 @@
+/* Fundo do chat */
+.typebot-container {
+    background-color: #e5ddd5 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Estilizando as mensagens do bot (mensagens recebidas) */
+.typebot-host-bubble {
+    background-color: white !important;
+    border-radius: 8px !important;
+    border-top-left-radius: 0 !important;
+    padding: 8px 12px !important;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1) !important;
+    max-width: 70% !important;
+    position: relative !important;
+}
+
+/* Estilizando as mensagens do usuário (mensagens enviadas) */
+.typebot-guest-bubble {
+    background-color: #dcf8c6 !important;
+    border-radius: 8px !important;
+    border-top-right-radius: 0 !important;
+    padding: 8px 12px !important;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1) !important;
+    max-width: 70% !important;
+    position: relative !important;
+    align-self: flex-end !important;
+}
+
+/* Ocultando avatar do bot */
+.typebot-avatar-container {
+    display: none !important;
+}
+
+/* Input de mensagens */
+.typebot-input {
+    background-color: #f0f0f0 !important;
+    padding: 10px !important;
+    border-top: 1px solid #e0e0e0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+}
+
+/* Campo de entrada */
+.typebot-input input,
+.typebot-input textarea {
+    background-color: white !important;
+    border-radius: 24px !important;
+    padding: 8px 12px !important;
+    border: none !important;
+    outline: none !important;
+    font-size: 15px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+    flex-grow: 1 !important;
+    margin-right: 10px !important;
+}
+
+/* Estilizando botão de envio */
+.typebot-send-button {
+    background-color: #128c7e !important;
+    color: white !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
